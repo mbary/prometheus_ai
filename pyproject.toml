@@ -5,7 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "datasets>=4.0.0",
+    "instructor>=1.10.0",
+    "ipykernel>=6.30.0",
     "openai>=1.90.0",
+    "pyaudio>=0.2.14",
+    "pydantic>=2.11.7",
     "python-dotenv>=1.1.1",
+    "rich>=14.1.0",
+    "torchcodec>=0.5",
+    "tqdm>=4.67.1",
+    "transformers>=4.54.0",
     "vllm>=0.10.0",
 ]
