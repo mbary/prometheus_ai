@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import shutil
-DATA_DIR = Path("./recorded/")
+DATA_DIR = Path(".audio/recorded/")
 POS_DIR = DATA_DIR / "positive"
 NEG_DIR = DATA_DIR / "negative"
 
