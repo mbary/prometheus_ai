@@ -7,6 +7,7 @@ import itertools
 from pydantic import BaseModel, Field
 import instructor
 import asyncio
+import json
 from rich import print
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm
@@ -17,6 +18,7 @@ BASE_URL_OPENROUTER = os.getenv("OPENROUTER_BASE_URL")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_FREE = "deepseek/deepseek-chat-v3-0324:free"
 MODEL = "deepseek/deepseek-chat-v3-0324"
+DATA_DIR = Path("./synth_commands")
 
 semaphore = asyncio.Semaphore(5)
 
@@ -38,7 +40,7 @@ class SynthCommand(BaseModel):
                         examples=["turn on", "turn off", "dim", "set color", "set brightness", "set scene", "set lights"],
                         )
 
-    scenes: Optional[Literal["natural light","concenrate", "energize", "relax", "read", "dimmed", "shrexy", "soho", "disturbia"]] = Field(
+    scenes: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 'relax', 'energize ', 'concentrate', 'read', 'warm embrace', 'galaxy', 'phthalocyanine green love', 'starlight', 'tri colour', 'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho ']] = Field(
         description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.",
         default=None
         )
@@ -48,7 +50,7 @@ class SynthResponse(BaseModel):
 
 
 
-async def generate_data(n_queries:int = 10,
+async def generate_commands(n_queries:int = 10,
                         model: str = MODEL_FREE
                         # model: str = MODEL
                         ) -> List[SynthCommand]:
@@ -118,40 +120,39 @@ async def generate_data(n_queries:int = 10,
     """
 
     user_prompt = f"""Generate {n_queries} diverse commands"""
+    commands = await client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role":"system", "content":system_prompt},
+            {"role":"user", "content":user_prompt}
+        ],
+        response_model=SynthResponse,
+        max_tokens=4096,
+        max_retries=5
+    )
+
+    return commands.commands
+
+async def generate_all_commands():
     async with semaphore:
-        commands = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role":"system", "content":system_prompt},
-                {"role":"user", "content":user_prompt}
-            ],
-            response_model=SynthResponse,
-            max_tokens=4096,
-            max_retries=5
-        )
-
-        return commands.commands
-
-async def main(n_runs:int = 100):
-    """
-    Run generate_data n times
-    Each run generates n_runs*10 commands
-    """
-    tasks = [generate_data() for _ in range(n_runs)]
+        return await generate_commands()
+    
+async def main(n_runs:int = 10):
+    
+    tasks = [generate_all_commands() for _ in range(n_runs)]
     results = await tqdm.gather(*tasks)
     results = list(itertools.chain.from_iterable(results))
     print(len(results))
-    # commands = [x.command for x in results]
-    # return commands
     return results
 
-results = await main()
+results = await main(n_runs=100)
+len(results)
+results[0].model_dump_json
+serialised_results=[res.model_dump_json() for res in results]
+serialised_results[0]
+with open(DATA_DIR/"synth_commands.json","w",encoding="utf-8") as file:
+    json.dump(serialised_results, file)
 
-
-print(results)
-a = results[0].json()
-type(a)
-
-if __name__=="__main__":
-    results = asyncio.gather(main())
-    print(results)
+# if __name__=="__main__":
+#     results = asyncio.run(main())
+#     print(results)
