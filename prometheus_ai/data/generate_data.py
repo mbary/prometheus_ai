@@ -25,8 +25,8 @@ semaphore = asyncio.Semaphore(5)
 class SynthCommand(BaseModel):
     full_command: str = Field(description="A command, including both wakeword phrase and an action, a user would give to the light controlling system.",
                          examples=["Hey Bridgette, turn on the lights in the office",
-                                   "Heeey Bridgette!! Turn off the lights in the kitchen", 
-                                   "Hi Bridgette, dim the lights in the living room", 
+                                   "Heeey Bridgette!! Turn off the lights in the lounge", 
+                                   "Hi Bridgette, dim the lights in the lounge room", 
                                    "Bridgette, set the lights to blue", "Change the light color to red",
                                    "Bridgette please set the brightness to 50%",
                                    "Hiiiii Bridgette set scene to natural light"]
@@ -34,11 +34,9 @@ class SynthCommand(BaseModel):
     wakeword_phrase: str = Field(description="The wakeword phrase to trigger the command.",
                                  examples=["Hey Bridgette", "Heeey Bridgette!!", "Hi Bridgette", "Bridgette"],)
     
-    zone: Literal["office", "kitchen", "lounge","lounge floor lights", "bedroom", "all","tv"] = Field(description="The name of the zone where the command will be executed.")
+    zone: Literal["office", "lounge","lounge floor lights", "bedroom", "all","tv"] = Field(description="The name of the zone where the command will be executed.")
                 
-    action: Literal["turn on", "turn off", "dim", "set color", "set brightness", "set scene", "set lights"] = Field(description="The action to be performed in the specified zone.",
-                        examples=["turn on", "turn off", "dim", "set color", "set brightness", "set scene", "set lights"],
-                        )
+    action: Literal["turn on", "turn off", "dim", "set color", "set brightness", "set scene", "set temperature"] = Field(description="The action to be performed in the specified zone.")
 
     scenes: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 'relax', 'energize ', 'concentrate', 'read', 'warm embrace', 'galaxy', 'phthalocyanine green love', 'starlight', 'tri colour', 'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho ']] = Field(
         description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.",
@@ -64,7 +62,8 @@ async def generate_commands(n_queries:int = 10,
     - turn off
     - set brightness
     - set scene
-
+    - set temperature
+    
     Available zones:
     - office
     - lounge
@@ -147,11 +146,12 @@ async def main(n_runs:int = 10):
 
 results = await main(n_runs=100)
 len(results)
-results[0].model_dump_json
+# results[0].model_dump_json
 serialised_results=[res.model_dump_json() for res in results]
-serialised_results[0]
-with open(DATA_DIR/"synth_commands.json","w",encoding="utf-8") as file:
-    json.dump(serialised_results, file)
+# serialised_results[0]
+with open(DATA_DIR/"synth_commands2.json","w",encoding="utf-8") as file:
+    file.write(json.dumps(serialised_results, indent=4))
+    # json.dump(serialised_results, file)
 
 # if __name__=="__main__":
 #     results = asyncio.run(main())
