@@ -53,13 +53,28 @@ To Do's:
 - [] Implement StateManager
 - [] Implement DependenciesManager
 - [] Implement tools:
-    - [x] set_scene
-    - [x] turn_off
-    - [x] turn_on
-    - [x] set_brightness
+    - [] set_scene
+        - [] execute
+        - [] summarise
+    - [] turn_off
+        - [] execute
+        - [] summarise
+    - [] turn_on
+        - [] execute
+        - [] summarise
+    - [] set_brightness
+        - [] execute
+        - [] summarise
     - [] set_color (experimental)
-    - [x] dim
-- [] step loop
+        - [] execute
+        - [] summarise
+    - [] dim
+        - [] execute
+        - [] summarise
+    - [] set_temperature
+        - [] execute
+        - [] summarise
+- [] step loop (is that even necessary if there are no steps per se and we're running continuously?)
 - [] firebase logging
 - [] implement event stream (no idea whether in the agent or Bridgette)
 
@@ -82,6 +97,9 @@ Testing:
 #############################################################
 
 bridge = Bridgette()
+print(dir(bridge.zones["office"]))
+print(bridge.zones["office"].children)
+
 
 class CustomBaseModel(BaseModel):
     class Config:
@@ -94,23 +112,50 @@ class StateManager(CustomBaseModel):
     rooms: Dict[str,HueRoom] = bridge.rooms
     lights: Dict[str,HueLight] = bridge.lights
 
-class DependenciesManager(BaseModel):
+class DependenciesManager(CustomBaseModel):
     client: Any = Field(description="The instructor client used for LLM interactions.",)
     max_retries: int = Field(default=3, description="The maximum number of retries for LLM calls.",)
+    bridge: Bridgette = Field(default=bridge, description="The Bridgette instance used for interacting with the Hue ecosystem.",)
 
 
 class Command(BaseModel):
     thinking: str = Field(description="Think about the command to be executed. What action does the user want to perform?")
+
     zone: Literal["office", "lounge", "lounge floor lights", "bedroom", "all", "tv"] = Field(
         description="The name of the zone where the command will be executed.")
+    
     light: Optional[str] = Field(
         description="The name of the light where the command will be executed")
-    scene: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 'relax', 'energize ', 'concentrate', 'read', 'warm embrace', 'galaxy', 'phthalocyanine green love', 'starlight', 'tri colour', 'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho ']] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.")
+    
+    scene: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 
+                            'relax', 'energize ', 'concentrate', 'read', 'warm embrace', 
+                            'galaxy', 'phthalocyanine green love', 'starlight', 'tri colour',
+                              'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho ']] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.")
 
 class TurnOn(BaseModel):
     thinking: str = Field(description="Think about the command to turn on the lights in the specified zone.")
     action_type: Literal["turn_on"] = "turn_on"
     command: Command = Field(description="Details where to perform the action")
+
+    def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
+        ##TODO implement the execution and return the updated light state
+        ## or maybe just update in the func and return outcome for the summary? 
+        ## if thats even needed? not sure if I have to even 
+        ## track the history conversation since it doesn't really matter
+
+        """
+        First I have to check what exactly is being turned on
+        - if it's a zone, I can just turn on all lights in that zone
+        - if it's a light, I can just turn on that light in a zone
+        - zone MUST be specified, otherwise I can't turn on anything
+        """
+        if not command.zone:
+            return 
+
+        pass
+
+    def summarise(self, state: StateManager):
+        pass
 
 class TurnOff(BaseModel):
     thinking: str = Field(description="Think about the command to turn off the lights in the specified zone.")
