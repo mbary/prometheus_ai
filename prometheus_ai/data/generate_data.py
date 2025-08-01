@@ -27,11 +27,16 @@ class Brightness(BaseModel):
                                          Can be expressed in absolute values (int) or percentages (float).
                                          If a percentage is given, the absolute value will be based on the current light state.
                                          If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3.""",
-                                         examples=[30,0.5, 0.75, 100, 50, 0.25],
-                                         ge=0, le=100,
+                                         examples=[30,0.5, 0.75, 100, 50, 0.25,
+                                                   -40,-0.2,-100],
+                                         ge=-100, le=100,
                                          )
+    delta: bool = Field(description="Whether the value is set in absolute or relative terms. If True, the current brightness will be adjusted by the given value. If False, the brightness will be set to the given value. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+    
 
 class SynthCommand(BaseModel):
+    thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
+
     full_command: str = Field(description="A command, including both wakeword phrase and an action, a user would give to the light controlling system.",
                          examples=["Hey Bridgette, turn on the lights in the office",
                                    "Heeey Bridgette!! Turn off the lights in the lounge", 
@@ -44,9 +49,12 @@ class SynthCommand(BaseModel):
     wakeword_phrase: str = Field(description="The wakeword phrase to trigger the command.",
                                  examples=["Hey Bridgette", "Heeey Bridgette!!", "Hi Bridgette", "Bridgette"],)
     
-    zone: Literal["office", "lounge","lounge floor lights", "bedroom", "all","tv"] = Field(description="The name of the zone where the command will be executed.")
-                
     action: Literal["turn_on", "turn_off", "dim", "set_color", "set_brightness", "set_scene", "set_temperature"] = Field(description="The action to be performed in the specified zone.")
+    
+    zone: Literal["office", "lounge","lounge floor lights", "bedroom", "all","tv"] = Field(description="The name of the zone where the command will be executed.")
+
+    light: Optional[str] = Field(
+        description="The name of the light where the command will be executed")                
 
     scenes: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 'relax', 'energize ', 
                              'concentrate', 'read', 'warm embrace', 'galaxy', 'phthalocyanine green love', 'starlight',
@@ -72,6 +80,18 @@ async def generate_commands(n_queries:int = 10,
     """Generate data for the light controlling system."""
     client = instructor.from_openai(AsyncOpenAI(base_url=BASE_URL_OPENROUTER, api_key=OPENROUTER_API_KEY))
     system_prompt = f"""You are an assistant that generates realistic commands a user would give to a light controlling system.
+
+    Commands per device:
+    - Light:
+      - turn_on
+      - turn_off
+      - dim
+      - set_brightness
+      - set_color
+      - set_temperature
+    - Plug:
+      - turn_on
+      - turn_off
     
     Available commands:
     - dim
@@ -120,6 +140,25 @@ async def generate_commands(n_queries:int = 10,
       - 'relax'
       - 'concentrate'
       - 'natural light'
+    
+    Lights per zone:
+    - office:
+      - 'desk' (light)
+      - 'ceiling' (light)
+      - 'floor' (light)
+    - lounge:
+      - 'TV1' (light)
+      - 'TV2' (light)
+      - 'Flartsy' (plug)
+      - 'standing' (plug)
+    - lounge floor lights:
+      - 'standing' (plug)
+      - 'flartsy' (plug)
+    - bedroom:
+      - 'ceiling1' (light)
+      - 'ceiling2' (light)
+    - tv:
+      - 'sub' (plug)
 
     wakeword phrase variation:
     - The wakeword phrase **MUST** be a variation of `Hey Bridgette`
@@ -131,6 +170,7 @@ async def generate_commands(n_queries:int = 10,
       - You **CANNOT** create chained commands e.g. "hey bridgette, turn on all lights and dim them to 40%"
     - Scenes can **ONLY** be set for zones with listed scenes
       - Zones without scenes support only on/off functionality
+    - Plugs can **ONLY** be turned on or off
 
     Respond with a JSON object with the following structure:
     {SynthResponse.model_json_schema()}
@@ -167,7 +207,7 @@ len(results)
 # results[0].model_dump_json
 serialised_results=[res.model_dump_json() for res in results]
 # serialised_results[0]
-with open(DATA_DIR/"synth_commands3k.json","w",encoding="utf-8") as file:
+with open(DATA_DIR/"synth_commands2_3k.json","w",encoding="utf-8") as file:
     file.write(json.dumps(serialised_results, indent=4))
     # json.dump(serialised_results, file)
 
