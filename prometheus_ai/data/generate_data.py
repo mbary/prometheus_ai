@@ -22,26 +22,43 @@ DATA_DIR = Path("./synth_commands")
 
 semaphore = asyncio.Semaphore(5)
 
+class Brightness(BaseModel):
+    brightness: Union[int,float] = Field(description="""The user's desired brightness level.
+                                         Can be expressed in absolute values (int) or percentages (float).
+                                         If a percentage is given, the absolute value will be based on the current light state.
+                                         If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3.""",
+                                         examples=[30,0.5, 0.75, 100, 50, 0.25],
+                                         ge=0, le=100,
+                                         )
+
 class SynthCommand(BaseModel):
     full_command: str = Field(description="A command, including both wakeword phrase and an action, a user would give to the light controlling system.",
                          examples=["Hey Bridgette, turn on the lights in the office",
                                    "Heeey Bridgette!! Turn off the lights in the lounge", 
                                    "Hi Bridgette, dim the lights in the lounge room", 
-                                   "Bridgette, set the lights to blue", "Change the light color to red",
+                                   "Bridgette, set the lights to blue",
                                    "Bridgette please set the brightness to 50%",
-                                   "Hiiiii Bridgette set scene to natural light"]
+                                   "Hiiiii Bridgette set scene to natural light",
+                                   "Bridgette, decrease the temperature in the office by 30%"]
                                    )
     wakeword_phrase: str = Field(description="The wakeword phrase to trigger the command.",
                                  examples=["Hey Bridgette", "Heeey Bridgette!!", "Hi Bridgette", "Bridgette"],)
     
     zone: Literal["office", "lounge","lounge floor lights", "bedroom", "all","tv"] = Field(description="The name of the zone where the command will be executed.")
                 
-    action: Literal["turn on", "turn off", "dim", "set color", "set brightness", "set scene", "set temperature"] = Field(description="The action to be performed in the specified zone.")
+    action: Literal["turn_on", "turn_off", "dim", "set_color", "set_brightness", "set_scene", "set_temperature"] = Field(description="The action to be performed in the specified zone.")
 
-    scenes: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 'relax', 'energize ', 'concentrate', 'read', 'warm embrace', 'galaxy', 'phthalocyanine green love', 'starlight', 'tri colour', 'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho ']] = Field(
-        description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.",
-        default=None
-        )
+    scenes: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 'relax', 'energize ', 
+                             'concentrate', 'read', 'warm embrace', 'galaxy', 'phthalocyanine green love', 'starlight',
+                             'tri colour', 'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho ']] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.",
+                                                                                                                                         default=None)
+    temperature: Optional[int] = Field(description="The warmth of the light",
+                                       ge=153, le=500,
+                                       examples=[153, 200, 300, 400, 500])
+    brightness: Optional[Brightness]
+
+    color: Optional[str] = Field(description="The color to be set in the specified zone.",
+                                 examples=["red", "blue", "green", "yellow", "purple", "orange", "pink", "white"])
 
 class SynthResponse(BaseModel):
     commands: List[SynthCommand] = Field(description="A list of commands that can be executed by the light controlling system.")
@@ -58,11 +75,12 @@ async def generate_commands(n_queries:int = 10,
     
     Available commands:
     - dim
-    - turn on
-    - turn off
-    - set brightness
-    - set scene
-    - set temperature
+    - turn_on
+    - turn_off
+    - set_brightness
+    - set_scene
+    - set_temperature
+    - set_color
     
     Available zones:
     - office
@@ -144,12 +162,12 @@ async def main(n_runs:int = 10):
     print(len(results))
     return results
 
-results = await main(n_runs=100)
+results = await main(n_runs=300)
 len(results)
 # results[0].model_dump_json
 serialised_results=[res.model_dump_json() for res in results]
 # serialised_results[0]
-with open(DATA_DIR/"synth_commands2.json","w",encoding="utf-8") as file:
+with open(DATA_DIR/"synth_commands3k.json","w",encoding="utf-8") as file:
     file.write(json.dumps(serialised_results, indent=4))
     # json.dump(serialised_results, file)
 
