@@ -11,6 +11,8 @@ import instructor
 
 from Prometheus import Bridgette
 from Prometheus.device import HueZone, HueResource, HueLight, HueRoom
+from dotenv import load_dotenv
+load_dotenv()
 """
 This file is the agent responsible for managing and controlling the Philips Hue ecosystem.
 (The base Bridgette class will likely require refactoring as it's quite old now)
@@ -74,7 +76,7 @@ To Do's:
     - [] set_temperature
         - [] execute
         - [] summarise
-- [] step loop (is that even necessary if there are no steps per se and we're running continuously?)
+- [] ??step loop (is that even necessary if there are no steps per se and we're running continuously?)
 - [] firebase logging
 - [] implement event stream (no idea whether in the agent or Bridgette)
 
@@ -86,6 +88,29 @@ Testing:
     - [] set_brightness
     - [] set_color (experimental)
     - [] dim
+
+    
+Tool planning:
+- Each tool will have an execute() method that will perform the action and update the state on the go
+    - How to deal with async execution? How to ensure that the state is:
+            - updated and read correctly?
+                is that even a good idea? I doubt the model will be executing multiple commands at once,
+                it might be a good idea however, to allow for command chaining like "turn lights on in the office, set the scene to relax and dim the lights to 50%"
+
+                This could be achieved in the following ways:
+                    - split the command into sub-commands and execute them one by one
+                    - update Bridgette to allow for doing both i.e. turning on AND setting brightness
+                        - basically tuning the functions to make them more robust, handling multiple action at once
+                        - 'set scene' should automatically turn on the lights in the zone if they are off (it might do so now?)
+                                                                                                          - checked, it does
+                                                                                                        
+
+Considerations:
+- Is summarise() even necessary considering that this is not a chat agent and we're not keeping track of the conversation history? It'll solely operate based on commands given to it so no history is needed
+    - this might allow me to decrease the complexity of the agent and focus on executing commands rather than keeping track of the conversation history and theoretically, the model shouldn't get as confused as the others.
+
+- Should I implement a step loop? I don't think so, as the agent will operate on commands given to it it'll
+  The model will run continuously and will execute commands as they come in
 """
 
 ###################################################################
@@ -95,6 +120,7 @@ Testing:
 #############################################################
 ######### STATE MANAGER AND DEPENDENCIES DEFINITION #########
 #############################################################
+
 
 bridge = Bridgette()
 print(dir(bridge.zones["office"]))
@@ -106,11 +132,9 @@ class CustomBaseModel(BaseModel):
         arbitrary_types_allowed=True
         ignored_types = (Bridgette, HueResource)
 
-
+##TODO consider if this is even required
 class StateManager(CustomBaseModel):
-    zones: Dict[str,HueZone] = bridge.zones
-    rooms: Dict[str,HueRoom] = bridge.rooms
-    lights: Dict[str,HueLight] = bridge.lights
+    bridge_state: Dict[str, Dict[str, Any]] = Field(description="A representation of the current bridge state")
 
 class DependenciesManager(CustomBaseModel):
     client: Any = Field(description="The instructor client used for LLM interactions.",)
@@ -118,8 +142,20 @@ class DependenciesManager(CustomBaseModel):
     bridge: Bridgette = Field(default=bridge, description="The Bridgette instance used for interacting with the Hue ecosystem.",)
 
 
+class Brightness(BaseModel):
+    brightness: Union[int,float] = Field(description="""The user's desired brightness level.
+                                         Can be expressed in absolute values (int) or percentages (float).
+                                         If a percentage is given, the absolute value will be based on the current light state.
+                                         If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3.""",
+                                         examples=[30,0.5, 0.75, 100, 50, 0.25,
+                                                   -40,-0.2,-100],
+                                         ge=-100, le=100,
+                                         )
+    delta: bool = Field(description="Whether the value is set in absolute or relative terms. If True, the current brightness will be adjusted by the given value. If False, the brightness will be set to the given value. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+    
+
 class Command(BaseModel):
-    thinking: str = Field(description="Think about the command to be executed. What action does the user want to perform?")
+    thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
 
     zone: Literal["office", "lounge", "lounge floor lights", "bedroom", "all", "tv"] = Field(
         description="The name of the zone where the command will be executed.")
@@ -127,15 +163,27 @@ class Command(BaseModel):
     light: Optional[str] = Field(
         description="The name of the light where the command will be executed")
     
-    scene: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 
+    scene: Optional[Literal['natural light', 'relax', 'bloodbath', 'rest', 'disturbia', 
                             'relax', 'energize ', 'concentrate', 'read', 'warm embrace', 
                             'galaxy', 'phthalocyanine green love', 'starlight', 'tri colour',
-                              'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho ']] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.")
+                              'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho']] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.")
+    brightness: Optional[Brightness]
+    temperature: Optional[int] = Field(description="The warmth of the light",
+                                       ge=153, le=500,
+                                       examples=[153, 200, 300, 400, 500]) 
+
+
+class Action(BaseModel):
+    thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
+
+    selected_action: Union[TurnOn, TurnOff, SetScene, SetBrightness, Dim, SetTemperature] = Field(description="The type of action to be performed.")
+    command: Command = Field(description="The details of the command to be executed.")
+
 
 class TurnOn(BaseModel):
     thinking: str = Field(description="Think about the command to turn on the lights in the specified zone.")
     action_type: Literal["turn_on"] = "turn_on"
-    command: Command = Field(description="Details where to perform the action")
+    command: Command = Field(description="Details of the action to be performed")
 
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         ##TODO implement the execution and return the updated light state
@@ -150,9 +198,17 @@ class TurnOn(BaseModel):
         - zone MUST be specified, otherwise I can't turn on anything
         """
         if not command.zone:
-            return 
+            raise ValueError("Zone must be specified to turn on the lights.") 
 
-        pass
+        if command.light:
+            # Turn on a specific light in the specified zone
+            deps.bridge.zones[command.zone].devices[command.light].turn_on()
+        elif command.scene == "all":
+            deps.bridge.turn_on_all_lights()
+        else:
+            deps.bridge.zones[command.zone].turn_on()
+        
+        state.bridge_state = deps.bridge.get_state()
 
     def summarise(self, state: StateManager):
         pass
@@ -160,20 +216,155 @@ class TurnOn(BaseModel):
 class TurnOff(BaseModel):
     thinking: str = Field(description="Think about the command to turn off the lights in the specified zone.")
     action_type: Literal["turn_off"] = "turn_off"
-    command: Command = Field(description="Details where to perform the action")
+    command: Command = Field(description="Details of the action to be performed")
+
+    def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
+        if not command.zone:
+            raise ValueError("Zone must be specified to turn off the lights.")
+        if command.light:
+            # Turn off a specific light in the specified zone
+            deps.bridge.zones[command.zone].devices[command.light].turn_off()
+        elif command.scene == "all":
+            deps.bridge.turn_off_all_lights()
+        else:
+            deps.bridge.zones[command.zone].turn_off()
+        
+        state.bridge_state = deps.bridge.get_state()
+
 
 class SetScene(BaseModel):
     thinking: str = Field(description="What scene does the user what to set?")
     action_type: Literal["set_scene"] = "set_scene"
-    command: Command = Field(description="Details where to perform the action")
+    command: Command = Field(description="Details of the action to be performed")
+
+    def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
+        if not command.zone:
+            raise ValueError("Zone must be specified to set the scene.")
+        if not command.scene:
+            raise ValueError("Scene must be specified to set the scene.")
+        
+        # Set the scene in the specified zone
+        deps.bridge.zones[command.zone].set_scene(command.scene)
+        
+        state.bridge_state = deps.bridge.get_state()
 
 class SetBrightness(BaseModel):
     thinking: str = Field(description="What brightness does the user want to set?")
     action_type: Literal["set_brightness"] = "set_brightness"
-    command: Command = Field(description="Details where to perform the action")
+    command: Command = Field(description="Details of the action to be performed")
+
+    def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
+        if not command.zone:
+            raise ValueError("Zone must be specified to set the brightness.")
+        if not command.brightness:
+            raise ValueError("Brightness must be specified to set the brightness.")
+        
+        # Set the brightness in the specified zone or light
+        if command.light:
+            current_brightness = state.bridge_state['zones'][command.zone]['devices'][command.light]["brightness"]
+            if isinstance(command.brightness.brightness, float):
+                if command.brightness.delta:
+                    new_brightness = current_brightness + (current_brightness * command.brightness)
+                else:
+                    new_brightness = command.brightness.brightness
+
+            elif isinstance(command.brightness.brightness, int):
+                if command.brightness.delta:
+                    new_brightness = current_brightness + command.brightness.brightness
+                else:
+                    new_brightness = command.brightness.brightness
+            
+            deps.bridge.zones[command.zone].devices[command.light].change_brightness(new_brightness)
+        else:
+            on_devices = {name:state['brightness'] for name, state in state.bridge_state['zones'][command.zone]['devices'].items() if state['state']=='on'}
+
+            avg_brightness = sum(on_devices.values()) / len(on_devices)
+
+            if isinstance(command.brightness.brightness, float):
+                if command.brightness.delta:
+                    new_brightness = avg_brightness + (avg_brightness * command.brightness.brightness)
+                else:
+                    new_brightness = command.brightness.brightness
+            elif isinstance(command.brightness.brightness, int):
+                if command.brightness.delta:
+                    new_brightness = avg_brightness + command.brightness.brightness
+                else:
+                    new_brightness = command.brightness.brightness
+
+            deps.bridge.zones[command.zone].change_brightness(new_brightness)
+
+        state.bridge_state = deps.bridge.get_state()
+
+
+class SetTemperature(BaseModel):
+    thinking: str = Field(description="How warm does the user want the lights to be?")
+    action_type: Literal["set_temperature"] = "set_temperature"
+    command: Command = Field(description="Details of the action to be performed")
+    
+    def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
+        if not command.zone:
+            raise ValueError("Zone must be specified to set the temperature.")
+        if not command.temperature:
+            raise ValueError("Temperature must be specified to set the temperature.")
+        
+        # Set the temperature in the specified zone or light
+        if command.light:
+            deps.bridge.zones[command.zone].devices[command.light].change_temp(command.temperature)
+        else:
+            deps.bridge.zones[command.zone].change_temp(command.temperature)
+        
+        state.bridge_state = deps.bridge.get_state()
 
 class Dim(BaseModel):
     thinking: str = Field(description="Where does the user want to dim the lights?")
     action_type: Literal["dim"] = "dim"
-    command: Command = Field(description="Details where to perform the action")
+    command: Command = Field(description="Details of the action to be performed")
 
+    def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
+        if not command.zone:
+            raise ValueError("Zone must be specified to dim the lights.")
+        
+        if command.light:
+            # Dim a specific light in the specified zone
+            current_brightness = state.bridge_state['zones'][command.zone]['devices'][command.light]["brightness"]
+            new_brightness = current_brightness * 0.5
+            deps.bridge.zones[command.zone].devices[command.light].change_brightness(new_brightness)
+        else:
+            current_brightness
+
+
+        
+
+
+TEST_MODEL_LARGE = "qwen/qwen3-235b-a22b:free"
+SYS_PROMPT_COMMAND = """You are an assistant parsing a command to be executed by a light controlling system."""
+
+class Agent:
+
+    def __init__(self):
+
+        self.bridge: Bridgette = Bridgette()
+        self.state: StateManager = StateManager(bridge_state=self.bridge.get_state())
+        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url=os.getenv("BASE_URL_OPENROUTER")
+        )),
+        max_retries=5,
+        bridge=self.bridge)
+
+    def action(self, user_prompt: str) -> None:
+        try:
+            action = self.deps.client.chat.completions.create(
+                model=TEST_MODEL_LARGE,
+                response_model=Action,
+                messages=[
+                    {"role":"system", "content": SYS_PROMPT_COMMAND},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_retries=self.deps.max_retries,
+                temperature=0.1)
+            
+            action.selected_action.execute(self.state, self.deps, action.command)
+        except Exception as e:
+            print(f"Error executing action: {e}")
+            return None
