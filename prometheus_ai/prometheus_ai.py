@@ -139,7 +139,7 @@ class StateManager(CustomBaseModel):
 class DependenciesManager(CustomBaseModel):
     client: Any = Field(description="The instructor client used for LLM interactions.",)
     max_retries: int = Field(default=3, description="The maximum number of retries for LLM calls.",)
-    bridge: Bridgette = Field(default=bridge, description="The Bridgette instance used for interacting with the Hue ecosystem.",)
+    bridge: Bridgette = Field(description="The Bridgette instance used for interacting with the Hue ecosystem.",)
 
 
 class Brightness(BaseModel):
@@ -181,22 +181,12 @@ class Action(BaseModel):
 
 
 class TurnOn(BaseModel):
+    """Turn on the light or a zone"""
     thinking: str = Field(description="Think about the command to turn on the lights in the specified zone.")
     action_type: Literal["turn_on"] = "turn_on"
     command: Command = Field(description="Details of the action to be performed")
 
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
-        ##TODO implement the execution and return the updated light state
-        ## or maybe just update in the func and return outcome for the summary? 
-        ## if thats even needed? not sure if I have to even 
-        ## track the history conversation since it doesn't really matter
-
-        """
-        First I have to check what exactly is being turned on
-        - if it's a zone, I can just turn on all lights in that zone
-        - if it's a light, I can just turn on that light in a zone
-        - zone MUST be specified, otherwise I can't turn on anything
-        """
         if not command.zone:
             raise ValueError("Zone must be specified to turn on the lights.") 
 
@@ -214,6 +204,7 @@ class TurnOn(BaseModel):
         pass
 
 class TurnOff(BaseModel):
+    """Turn off the light or a zone"""
     thinking: str = Field(description="Think about the command to turn off the lights in the specified zone.")
     action_type: Literal["turn_off"] = "turn_off"
     command: Command = Field(description="Details of the action to be performed")
@@ -233,6 +224,7 @@ class TurnOff(BaseModel):
 
 
 class SetScene(BaseModel):
+    """Set the selected scene in the specified zone"""
     thinking: str = Field(description="What scene does the user what to set?")
     action_type: Literal["set_scene"] = "set_scene"
     command: Command = Field(description="Details of the action to be performed")
@@ -249,6 +241,8 @@ class SetScene(BaseModel):
         state.bridge_state = deps.bridge.get_state()
 
 class SetBrightness(BaseModel):
+    """Set the brightness of the specified zone or light.
+    Can be set in absolute terms (e.g. 50) or relative terms (e.g. increase by 20%)."""
     thinking: str = Field(description="What brightness does the user want to set?")
     action_type: Literal["set_brightness"] = "set_brightness"
     command: Command = Field(description="Details of the action to be performed")
@@ -297,6 +291,7 @@ class SetBrightness(BaseModel):
 
 
 class SetTemperature(BaseModel):
+    """Set the temperature of the specified zone or light."""
     thinking: str = Field(description="How warm does the user want the lights to be?")
     action_type: Literal["set_temperature"] = "set_temperature"
     command: Command = Field(description="Details of the action to be performed")
@@ -316,6 +311,7 @@ class SetTemperature(BaseModel):
         state.bridge_state = deps.bridge.get_state()
 
 class Dim(BaseModel):
+    """Dim the specified zone or light by 50% of its current brightness."""
     thinking: str = Field(description="Where does the user want to dim the lights?")
     action_type: Literal["dim"] = "dim"
     command: Command = Field(description="Details of the action to be performed")
@@ -334,10 +330,30 @@ class Dim(BaseModel):
 
 
         
-
+AGENTACTIONS = Union[TurnOn, 
+                     TurnOff, 
+                     SetScene, 
+                     SetBrightness, 
+                     SetTemperature, 
+                    #  Dim
+                     ]
 
 TEST_MODEL_LARGE = "qwen/qwen3-235b-a22b:free"
-SYS_PROMPT_COMMAND = """You are an assistant parsing a command to be executed by a light controlling system."""
+
+##TODO Add tool descriptions and examples
+SYS_PROMPT_COMMAND = """You are an assistant parsing a command to be executed by a light controlling system.
+You have access to the following tools:
+- turn_on - Turns on the selected lights or zone
+- turn_off - Turns off the selected lights or zone
+- set_scene - Sets the scene in the selected zone
+- set_brightness - Sets the brightness of the selected lights or zone
+- set_temperature - Sets the temperature of the selected lights or zone
+
+Each tool requires:
+- thinknig: Your reasoning for selecting this action
+- action_type: The exact name of the selected tool
+- command: A structured command containing the details of the action to be performed.
+"""
 
 class Agent:
 
@@ -356,7 +372,7 @@ class Agent:
         try:
             action = self.deps.client.chat.completions.create(
                 model=TEST_MODEL_LARGE,
-                response_model=Action,
+                response_model=AGENTACTIONS,
                 messages=[
                     {"role":"system", "content": SYS_PROMPT_COMMAND},
                     {"role": "user", "content": user_prompt}
@@ -364,7 +380,7 @@ class Agent:
                 max_retries=self.deps.max_retries,
                 temperature=0.1)
             
-            action.selected_action.execute(self.state, self.deps, action.command)
+            action.execute(self.state, self.deps, action.command)
         except Exception as e:
             print(f"Error executing action: {e}")
             return None
