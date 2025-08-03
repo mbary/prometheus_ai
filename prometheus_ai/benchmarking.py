@@ -1,26 +1,14 @@
 import os
-from typing import Any, Optional, Union
+import asyncio
+from typing import Any, Optional, Union, List
 
 from pydantic import BaseModel
 from prometheus_ai import Agent
 
 import logfire
-# logfire.configure()
 from datasets import load_dataset, Dataset
 from tqdm.asyncio import tqdm
 from rich import print, print_json
-dataset = load_dataset("mbary/hue_commands_synth_3k", split="train")
-
-len(dataset)
-dataset[:10]
-print([scenario['full_command'] for scenario in dataset[:10]])
-dataset[0]
-
-print([x for x in dataset[:10]])
-
-# ag = Agent(benchmarking=True)
-# a = ag.action(dataset[0]['full_command'])
-# print(a)
 
 ##TODOs
 """ 
@@ -51,10 +39,62 @@ class Scenario(BaseModel):
     light: Optional[str]
     temperature: Optional[int]
     brightness: Optional[Union[float,int]]
-    brightness_relative: bool
+    brightness_relative: Optional[bool]
     brightness_up_down: Optional[str]
     color: Optional[str]
     split: str
+
+
+def load_scenarios(
+    dataset_name: str = "mbary/hue_commands_synth_3k", 
+    split: str = "train", 
+    limit: Optional[int] = None,
+    exclude_actions: Optional[List[str]] = None
+) -> List[Scenario]:
+    """
+    Load scenarios from a Hugging Face dataset and convert them to Scenario objects.
+    
+    Args:
+        dataset_name: The name of the Hugging Face dataset to load
+        split: The split to load (train, test, validation)
+        limit: Maximum number of scenarios to return. If None, returns all scenarios.
+        exclude_actions: List of action names to filter out from the dataset
+    
+    Returns:
+        List of Scenario objects
+    """
+    dataset = load_dataset(dataset_name, split=split)
+    scenarios = []
+
+    if exclude_actions is None:
+        exclude_actions = []
+    
+    processed_count = 0
+    for i, item in enumerate(dataset):
+        if limit is not None and processed_count >= limit:
+            break
+            
+        if item['action'] in exclude_actions:
+            continue
+            
+        scenario = Scenario(
+            id=item.get('id', i),
+            full_command=item['full_command'],
+            wakeword_phrase=item['wakeword_phrase'],
+            action=item['action'],
+            zone=item['zone'],
+            light=item.get('light'),
+            temperature=item.get('temperature'),
+            brightness=item.get('brightness'),
+            brightness_relative=item.get('brightness_relative', False),
+            brightness_up_down=item.get('brightness_up_down'),
+            color=item.get('color'),
+            split=item.get('split', split)
+        )
+        scenarios.append(scenario)
+        processed_count += 1
+    
+    return scenarios
 
 
 
@@ -66,27 +106,50 @@ async def score_action(action, command):
     # Placeholder for scoring logic
     # This should be replaced with actual scoring logic
     score = 0
-    if action and action.command == command:
+    if action and action.action_type == command:
         score = 1  # Example score for a correct action
     return score
 
 @logfire.instrument('run_agent_and_score', extract_args=True, record_return=True)
 async def run_agent_and_score(
-    scenario:Any,
-    benchmarking: bool = True):
-    print("runnin' and scorin'")
-    agent= Agent(benchmarking=benchmarking)
+    scenario: Scenario,
+    semaphore: asyncio.Semaphore,
+    model:str,
+    benchmarking: bool = True,
+    max_retries: int = 1,
+    )->int:
+    async with semaphore:
+        print("runnin' and scorin'")
+        agent= Agent(benchmarking=benchmarking,
+                     max_retries=max_retries,
+                     model=model)
 
-    action = await agent.action(scenario['full_command'])
-    score = await score_action(action, scenario['action'])
+        action = await agent.action(scenario.full_command)
+        score = await score_action(action, scenario.action)
 
-    return score
+        return score
 
 @logfire.instrument('benchmarking', extract_args=True, record_return=True)
-async def benchmark(num_scenarios: int) ->int:
-    scenarios = load_dataset('mbary/hue_commands_synth_3k', split='test')[:num_scenarios]
+async def benchmark(
+    num_scenarios: int, 
+    model:str,
+    max_concurrent_requests: int = 5,
+    exclude_actions: Optional[List[str]] = None,
+    max_retries: int = 1,
+) -> int:
+    scenarios = load_scenarios(
+        'mbary/hue_commands_synth_3k', 
+        split='test', 
+        limit=num_scenarios,
+        exclude_actions=exclude_actions
+    )
+    
+    print(f"Loaded {len(scenarios)} scenarios after filtering")
+    
+    semaphore = asyncio.Semaphore(max_concurrent_requests)
 
-    results = await tqdm.gather(*[run_agent_and_score(scenario) for scenario in scenarios])
+    results = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
+                                                      semaphore=semaphore, model=model, max_retries=max_retries) for scenario in scenarios], desc="Benchmarking yo")
 
     return sum(results)/len(results) if results else 0
 
@@ -95,4 +158,19 @@ if __name__ == '__main__':
     from rich import print
     print('running?')
     logfire.configure(token=os.environ.get("LOGFIRE_TOKEN"), console=False)
-    print(asyncio.run(benchmark(num_scenarios=10)))
+    logfire.instrument_openai()
+    max_concurrent_requests = 3
+    print(f"Running benchmark with rate limiting (max {max_concurrent_requests} concurrent requests)...")
+
+    unimplemented_actions = [
+        "set_color"
+    ]
+    
+    print(f"Excluding actions: {unimplemented_actions}")
+    result = asyncio.run(benchmark(
+        num_scenarios=10,
+        max_concurrent_requests=max_concurrent_requests,
+        exclude_actions=unimplemented_actions,
+        model="qwen/qwen3-30b-a3b"
+    ))
+    print(f"Benchmark result: {result}")
