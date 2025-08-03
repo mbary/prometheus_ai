@@ -136,8 +136,9 @@ class StateManager(CustomBaseModel):
 class DependenciesManager(CustomBaseModel):
     client: Any = Field(description="The instructor client used for LLM interactions.",)
     max_retries: int = Field(default=3, description="The maximum number of retries for LLM calls.",)
-    bridge: Bridgette = Field(description="The Bridgette instance used for interacting with the Hue ecosystem.",)
+    bridge: Optional[Bridgette] = Field(description="The Bridgette instance used for interacting with the Hue ecosystem.",)
     model: str = Field(description="The model used for LLM interactions.",default=None)
+    benchmarking: bool = Field(default=False, description="Whether the agent is running in benchmarking mode. If True, the agent will return the action instead of executing it.")
 
 
 class Brightness(BaseModel):
@@ -356,17 +357,24 @@ class Agent:
                  api_key: str = os.getenv("OPENROUTER_API_KEY"),
                  base_url: str = os.getenv("OPENROUTER_BASE_URL"),
                  max_retries: int = 3,
-                 model=TEST_MODEL_LARGE_FREE) -> None:
+                 model=TEST_MODEL_LARGE_FREE,
+                 benchmarking: bool = False) -> None:
 
         if "localhost" in base_url:
             api_key = "EMPTY"
             base_url = "http://localhost:8000/v1"
+        
+        # if benchmarking:
+        #     self.bridge = None
+        #     self.state = StateManager(bridge_state={})
+        # else:
         self.bridge: Bridgette = Bridgette()
         self.state: StateManager = StateManager(bridge_state=self.bridge.get_current_state())
         self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(OpenAI(api_key=api_key,
                                                                                                   base_url=base_url)),
                                                             max_retries=max_retries,
-                                                            bridge=self.bridge)
+                                                            bridge=self.bridge,
+                                                            benchmarking=benchmarking)
         if "localhost" in base_url:
             self.deps.model = self.deps.client.models.list().data[0].id
         else:
@@ -378,8 +386,9 @@ class Agent:
         logfire.info(f"Model: {self.deps.model}")
 
     @logfire.instrument('executing_action', extract_args=True, record_return=True)
-    def action(self, user_prompt: str) -> None:
+    async def action(self, user_prompt: str) -> Union[None, AGENTACTIONS]:
         try:
+            print("I'm trying action yo")
             logfire.info(f"User prompt: {user_prompt}")
             action = self.deps.client.chat.completions.create(
                 model=self.deps.model,
@@ -391,7 +400,11 @@ class Agent:
                 max_retries=self.deps.max_retries,
                 temperature=0.1)
             
+            if self.deps.benchmarking:
+                return action.model_dump()
+            
             action.execute(self.state, self.deps, action.command)
+            
         except Exception as e:
             logfire.error(f"Error executing action: {e}")
             return None
