@@ -1,5 +1,6 @@
 import os
 import asyncio
+import random
 from typing import Any, Optional, Union, List
 
 from pydantic import BaseModel
@@ -44,12 +45,13 @@ class Scenario(BaseModel):
     color: Optional[str]
     split: str
 
-
+@logfire.instrument('load_scenarios', extract_args=True, record_return=True)
 def load_scenarios(
     dataset_name: str = "mbary/hue_commands_synth_3k", 
     split: str = "train", 
     limit: Optional[int] = None,
-    exclude_actions: Optional[List[str]] = None
+    exclude_actions: Optional[List[str]] = None,
+    seed: Optional[int] = None
 ) -> List[Scenario]:
     """
     Load scenarios from a Hugging Face dataset and convert them to Scenario objects.
@@ -59,18 +61,24 @@ def load_scenarios(
         split: The split to load (train, test, validation)
         limit: Maximum number of scenarios to return. If None, returns all scenarios.
         exclude_actions: List of action names to filter out from the dataset
+        seed: Random seed for reproducible sampling. If None, no shuffling is applied.
     
     Returns:
         List of Scenario objects
     """
     dataset = load_dataset(dataset_name, split=split)
+    all_items = list(dataset)
+    
+    if seed is not None:
+        random.seed(seed)
+        random.shuffle(all_items)
+    
     scenarios = []
-
     if exclude_actions is None:
         exclude_actions = []
     
     processed_count = 0
-    for i, item in enumerate(dataset):
+    for i, item in enumerate(all_items):
         if limit is not None and processed_count >= limit:
             break
             
@@ -94,6 +102,7 @@ def load_scenarios(
         scenarios.append(scenario)
         processed_count += 1
     
+    logfire.info(f"Loaded {len(scenarios)} scenarios from {dataset_name} ({split} split) with limit={limit}, seed={seed}")
     return scenarios
 
 
@@ -115,12 +124,11 @@ async def run_agent_and_score(
     scenario: Scenario,
     semaphore: asyncio.Semaphore,
     model:str,
+    base_url: str,
     benchmarking: bool = True,
     max_retries: int = 1,
     )->int:
     async with semaphore:
-        print("runnin' and scorin'")
-        base_url = "http://localhost:8000/v1"
         agent= Agent(benchmarking=benchmarking,
                      max_retries=max_retries,
                      model=model,
@@ -128,30 +136,33 @@ async def run_agent_and_score(
 
         action = await agent.action(scenario.full_command)
         score = await score_action(action, scenario)
-
+        logfire.info(f"Score: {score}")
         return score
 
 @logfire.instrument('benchmarking', extract_args=True, record_return=True)
 async def benchmark(
-    num_scenarios: int, 
     model:str,
+    base_url: str,
     max_concurrent_requests: int = 5,
+    num_scenarios: int = None, 
     exclude_actions: Optional[List[str]] = None,
     max_retries: int = 1,
+    seed: Optional[int] = None,
 ) -> int:
     scenarios = load_scenarios(
         'mbary/hue_commands_synth_3k', 
         split='test', 
         limit=num_scenarios,
-        exclude_actions=exclude_actions
+        exclude_actions=exclude_actions,
+        seed=seed
     )
     
-    print(f"Loaded {len(scenarios)} scenarios after filtering")
+    print(f"Loaded {len(scenarios)} scenarios after filtering (seed: {seed})")
     
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
     results = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
-                                                      semaphore=semaphore, model=model, max_retries=max_retries) for scenario in scenarios], desc="Benchmarking yo")
+                                                      semaphore=semaphore, model=model, max_retries=max_retries, base_url=base_url) for scenario in scenarios], desc="Benchmarking yo")
 
     return sum(results)/len(results) if results else 0
 
@@ -161,10 +172,14 @@ if __name__ == '__main__':
 
     logfire.configure(token=os.environ.get("LOGFIRE_TOKEN"), console=False)
     logfire.instrument_openai()
-    # model = "qwen/qwen3-30b-a3b"
+    model = "qwen/qwen3-30b-a3b"
     # model ="qwen/qwen3-32b"
     model='Qwen3-0.6B'
-    max_concurrent_requests = 3
+    base_url = "http://localhost:8000/v1"
+    # base_url = os.getenv("OPENROUTER_BASE_URL")
+    max_concurrent_requests = 5
+    benchmark_seed = 42  # Use same seed for all model comparisons
+    
     with logfire.span(f'benchmarking: {model}'):
         logfire.info("Starting benchmarking...")
 
@@ -175,11 +190,14 @@ if __name__ == '__main__':
         ]
         
         print(f"Excluding actions: {unimplemented_actions}")
+        print(f"Using seed: {benchmark_seed} for reproducible results")
         result = asyncio.run(benchmark(
-            num_scenarios=10,
+            # num_scenarios=50,
             max_concurrent_requests=max_concurrent_requests,
             exclude_actions=unimplemented_actions,
-            model=model
+            model=model,
+            seed=benchmark_seed,
+            base_url=base_url,
         ))
         print(f"Benchmark result: {result}")
         logfire.info(f"Benchmark completed with result: {result}")
