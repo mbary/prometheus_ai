@@ -34,7 +34,7 @@ class Scenario(BaseModel):
     id:int
     full_command: str
     wakeword_phrase: str
-    action: str
+    action_type: str
     zone: str
     light: Optional[str]
     temperature: Optional[int]
@@ -81,7 +81,7 @@ def load_scenarios(
             id=item.get('id', i),
             full_command=item['full_command'],
             wakeword_phrase=item['wakeword_phrase'],
-            action=item['action'],
+            action_type=item['action'],
             zone=item['zone'],
             light=item.get('light'),
             temperature=item.get('temperature'),
@@ -99,14 +99,14 @@ def load_scenarios(
 
 
 @logfire.instrument('score_action', extract_args=True, record_return=True)
-async def score_action(action, command):
+async def score_action(action, scenario):
     """
     Scores the action based on the command.
     """
     # Placeholder for scoring logic
     # This should be replaced with actual scoring logic
     score = 0
-    if action and action.action_type == command:
+    if action and action.action_type == scenario.action_type:
         score = 1  # Example score for a correct action
     return score
 
@@ -125,7 +125,7 @@ async def run_agent_and_score(
                      model=model)
 
         action = await agent.action(scenario.full_command)
-        score = await score_action(action, scenario.action)
+        score = await score_action(action, scenario)
 
         return score
 
@@ -156,21 +156,27 @@ async def benchmark(
 if __name__ == '__main__':
     import asyncio
     from rich import print
-    print('running?')
+
     logfire.configure(token=os.environ.get("LOGFIRE_TOKEN"), console=False)
     logfire.instrument_openai()
+    model = "qwen/qwen3-30b-a3b"
+    # model ="qwen/qwen3-32b"
     max_concurrent_requests = 3
-    print(f"Running benchmark with rate limiting (max {max_concurrent_requests} concurrent requests)...")
+    with logfire.span(f'benchmarking: {model}'):
+        logfire.info("Starting benchmarking...")
 
-    unimplemented_actions = [
-        "set_color"
-    ]
-    
-    print(f"Excluding actions: {unimplemented_actions}")
-    result = asyncio.run(benchmark(
-        num_scenarios=10,
-        max_concurrent_requests=max_concurrent_requests,
-        exclude_actions=unimplemented_actions,
-        model="qwen/qwen3-30b-a3b"
-    ))
-    print(f"Benchmark result: {result}")
+        print(f"Running benchmark with rate limiting (max {max_concurrent_requests} concurrent requests)...")
+
+        unimplemented_actions = [
+            "set_color"
+        ]
+        
+        print(f"Excluding actions: {unimplemented_actions}")
+        result = asyncio.run(benchmark(
+            num_scenarios=10,
+            max_concurrent_requests=max_concurrent_requests,
+            exclude_actions=unimplemented_actions,
+            model=model
+        ))
+        print(f"Benchmark result: {result}")
+        logfire.info(f"Benchmark completed with result: {result}")
