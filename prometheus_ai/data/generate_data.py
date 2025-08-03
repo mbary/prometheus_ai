@@ -23,15 +23,18 @@ DATA_DIR = Path("./synth_commands")
 semaphore = asyncio.Semaphore(5)
 
 class Brightness(BaseModel):
+    
     brightness: Union[int,float] = Field(description="""The user's desired brightness level.
                                          Can be expressed in absolute values (int) or percentages (float).
                                          If a percentage is given, the absolute value will be based on the current light state.
-                                         If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3.""",
+                                         If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3. If the user says 'increase brightness by 10%' return 0.1. If the user says 'decrease brightness by 40%' return -0.4.""",
                                          examples=[30,0.5, 0.75, 100, 50, 0.25,
                                                    -40,-0.2,-100],
                                          ge=-100, le=100,
                                          )
-    delta: bool = Field(description="Whether the value is set in absolute or relative terms. If True, the current brightness will be adjusted by the given value. If False, the brightness will be set to the given value. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+    relative: bool = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+
+    up_down: Literal['up','down'] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down")
     
 
 class SynthCommand(BaseModel):
@@ -54,28 +57,48 @@ class SynthCommand(BaseModel):
     zone: Literal["office", "lounge","lounge floor lights", "bedroom", "all","tv"] = Field(description="The name of the zone where the command will be executed.")
 
     light: Optional[str] = Field(
-        description="The name of the light where the command will be executed")                
+        description="The name of the light where the command will be executed", default=None,)                
 
-    scenes: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 'relax', 'energize ', 
+    scene: Optional[Literal['natural light', 'relax, ', 'bloodbath', 'rest', 'disturbia', 'relax', 'energize ', 
                              'concentrate', 'read', 'warm embrace', 'galaxy', 'phthalocyanine green love', 'starlight',
                              'tri colour', 'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho ']] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.",
                                                                                                                                          default=None)
     temperature: Optional[int] = Field(description="The warmth of the light",
                                        ge=153, le=500,
-                                       examples=[153, 200, 300, 400, 500])
-    brightness: Optional[Brightness]
+                                       examples=[153, 200, 300, 400, 500],
+                                       default=None)
+    brightness: Optional[Brightness] = Field(default=None,)
 
     color: Optional[str] = Field(description="The color to be set in the specified zone.",
-                                 examples=["red", "blue", "green", "yellow", "purple", "orange", "pink", "white"])
+                                 examples=["red", "blue", "green", "yellow", "purple", "orange", "pink", "white"],
+                                 default=None)
 
 class SynthResponse(BaseModel):
     commands: List[SynthCommand] = Field(description="A list of commands that can be executed by the light controlling system.")
 
 
+class Scenario(BaseModel):
+    """A scenario for the light controlling system."""
+    id: int
+    full_command: str
+    wakeword_phrase: str
+    action: str
+    zone: str
+    light: Optional[str]
+    scene: Optional[str]
+    temperature: Optional[int]
+    brightness: Optional[Union[int,float]]
+    brightness_relative: Optional[bool]
+    brightness_up_down: Optional[str]
+    color: Optional[str]
+
+
+    split: Literal["train", "test"]
+
 
 async def generate_commands(n_queries:int = 10,
-                        model: str = MODEL_FREE
-                        # model: str = MODEL
+                        # model: str = MODEL_FREE
+                        model: str = MODEL
                         ) -> List[SynthCommand]:
     """Generate data for the light controlling system."""
     client = instructor.from_openai(AsyncOpenAI(base_url=BASE_URL_OPENROUTER, api_key=OPENROUTER_API_KEY))
@@ -203,12 +226,62 @@ async def main(n_runs:int = 10):
     return results
 
 results = await main(n_runs=300)
-len(results)
+# len(results)
 # results[0].model_dump_json
 serialised_results=[res.model_dump_json() for res in results]
-# serialised_results[0]
-with open(DATA_DIR/"synth_commands2_3k.json","w",encoding="utf-8") as file:
-    file.write(json.dumps(serialised_results, indent=4))
+
+list_scenarios=[]
+id=0
+with open(DATA_DIR/"synth_commands_3k.jsonl", "a", encoding="utf-8") as file:
+  for res in results:
+        file.write(
+            Scenario(
+                id=id,
+                full_command=res.full_command,
+                wakeword_phrase=res.wakeword_phrase,
+                action=res.action,
+                zone=res.zone,
+                light=res.light,
+                scene=res.scene,
+                temperature=res.temperature,
+                brightness=res.brightness.brightness if res.brightness else None,
+                brightness_relative=res.brightness.relative if res.brightness else None,
+                brightness_up_down=res.brightness.up_down if res.brightness else None,
+                color=res.color,
+                split="train" if id < 2500 else "test"
+            ).model_dump_json() + "\n"
+        )
+        list_scenarios.append(
+            Scenario(
+                id=id,
+                full_command=res.full_command,
+                wakeword_phrase=res.wakeword_phrase,
+                action=res.action,
+                zone=res.zone,
+                light=res.light,
+                scene=res.scene,
+                temperature=res.temperature,
+                brightness=res.brightness.brightness if res.brightness else None,
+                brightness_relative=res.brightness.relative if res.brightness else None,
+                brightness_up_down=res.brightness.up_down if res.brightness else None,
+                color=res.color,
+                split="train" if id < 2500 else "test"
+            ).model_dump_json()
+        )
+        id += 1
+type(list_scenarios[0])
+dict_scenarios = [json.loads(scenario) for scenario in list_scenarios]
+train_scenarios = [scenario for scenario in dict_scenarios if scenario['split'] == 'train']
+test_scenarios = [scenario for scenario in dict_scenarios if scenario['split'] == 'test']
+from datasets import Dataset
+hf_ds_train = Dataset.from_list(train_scenarios)
+hf_ds_test = Dataset.from_list(test_scenarios)
+
+# hf_ds_train.push_to_hub("mbary/hue_commands_synth_3k", private=True, split="train")
+# hf_ds_test.push_to_hub("mbary/hue_commands_synth_3k", split="test")
+
+# with open(DATA_DIR/"synth_commands3_3k.jsonl","w",encoding="utf-8") as file:
+#     file.write(json.dumps(serialised_results, indent=4))
     # json.dump(serialised_results, file)
 
 # if __name__=="__main__":
