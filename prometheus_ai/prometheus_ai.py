@@ -348,6 +348,7 @@ AGENTACTIONS = Union[TurnOn,
                      ]
 
 TEST_MODEL_LARGE_FREE = "qwen/qwen3-235b-a22b:free"
+TEEST_MODEL_LARGE = "qwen/qwen3-235b-a22b"
 
 
 class Agent:
@@ -357,7 +358,8 @@ class Agent:
                  api_key: str = os.getenv("OPENROUTER_API_KEY"),
                  base_url: str = os.getenv("OPENROUTER_BASE_URL"),
                  max_retries: int = 3,
-                 model=TEST_MODEL_LARGE_FREE,
+                #  model=TEST_MODEL_LARGE_FREE,
+                model = TEEST_MODEL_LARGE,
                  benchmarking: bool = False) -> None:
 
         if "localhost" in base_url:
@@ -370,7 +372,7 @@ class Agent:
         # else:
         self.bridge: Bridgette = Bridgette()
         self.state: StateManager = StateManager(bridge_state=self.bridge.get_current_state())
-        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(OpenAI(api_key=api_key,
+        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(AsyncOpenAI(api_key=api_key,
                                                                                                   base_url=base_url)),
                                                             max_retries=max_retries,
                                                             bridge=self.bridge,
@@ -388,7 +390,6 @@ class Agent:
     @logfire.instrument('executing_action', extract_args=True, record_return=True)
     async def action(self, user_prompt: str) -> Union[None, AGENTACTIONS]:
         try:
-            print("I'm trying action yo")
             logfire.info(f"User prompt: {user_prompt}")
             action = self.deps.client.chat.completions.create(
                 model=self.deps.model,
