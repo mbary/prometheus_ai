@@ -321,6 +321,7 @@ class Dim(BaseModel):
     action_type: Literal["dim"] = "dim"
     command: Command = Field(description="Details of the action to be performed")
 
+    @logfire.instrument('dim', extract_args=True, record_return=True)
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to dim the lights.")
@@ -332,6 +333,8 @@ class Dim(BaseModel):
             deps.bridge.zones[command.zone].devices[command.light].change_brightness(new_brightness)
         else:
             current_brightness
+        
+        state.bridge_state = deps.bridge.get_current_state()
 
 
         
@@ -340,7 +343,7 @@ AGENTACTIONS = Union[TurnOn,
                      SetScene, 
                      SetBrightness, 
                      SetTemperature, 
-                    #  Dim
+                     Dim
                      ]
 
 TEST_MODEL_LARGE_FREE = "qwen/qwen3-235b-a22b:free"
