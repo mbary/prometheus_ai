@@ -106,7 +106,7 @@ async def score_action(action, scenario):
     # Placeholder for scoring logic
     # This should be replaced with actual scoring logic
     score = 0
-    if action and action.action_type == scenario.action_type:
+    if action and action['action_type'] == scenario.action_type:
         score = 1  # Example score for a correct action
     return score
 
@@ -120,9 +120,11 @@ async def run_agent_and_score(
     )->int:
     async with semaphore:
         print("runnin' and scorin'")
+        base_url = "http://localhost:8000/v1"
         agent= Agent(benchmarking=benchmarking,
                      max_retries=max_retries,
-                     model=model)
+                     model=model,
+                     base_url=base_url)
 
         action = await agent.action(scenario.full_command)
         score = await score_action(action, scenario)
@@ -159,8 +161,9 @@ if __name__ == '__main__':
 
     logfire.configure(token=os.environ.get("LOGFIRE_TOKEN"), console=False)
     logfire.instrument_openai()
-    model = "qwen/qwen3-30b-a3b"
+    # model = "qwen/qwen3-30b-a3b"
     # model ="qwen/qwen3-32b"
+    model='Qwen3-0.6B'
     max_concurrent_requests = 3
     with logfire.span(f'benchmarking: {model}'):
         logfire.info("Starting benchmarking...")
