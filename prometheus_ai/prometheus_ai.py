@@ -156,7 +156,7 @@ class Brightness(BaseModel):
     
 
 class Command(BaseModel):
-    thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
+    # thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
 
     zone: Literal["office", "lounge", "lounge floor lights", "bedroom", "all", "tv"] = Field(
         description="The name of the zone where the command will be executed.")
@@ -175,7 +175,7 @@ class Command(BaseModel):
 
 
 class Action(BaseModel):
-    thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
+    # thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
 
     selected_action: Union[TurnOn, TurnOff, SetScene, SetBrightness, Dim, SetTemperature] = Field(description="The type of action to be performed.")
     command: Command = Field(description="The details of the command to be executed.")
@@ -376,11 +376,12 @@ class Agent:
                                                                                                   base_url=base_url)),
                                                             max_retries=max_retries,
                                                             bridge=self.bridge,
-                                                            benchmarking=benchmarking)
-        if "localhost" in base_url:
-            self.deps.model = self.deps.client.models.list().data[0].id
-        else:
-            self.deps.model = model
+                                                            benchmarking=benchmarking,
+                                                            model=model)
+        # if "localhost" in base_url:
+        #     self.deps.model = self.deps.client.models.list().data[0].id
+        # else:
+        #     self.deps.model = model
 
 
         self.SYS_PROMPT = self._build_sys_prompt(self.deps, self.state)
@@ -391,7 +392,7 @@ class Agent:
     async def action(self, user_prompt: str) -> Union[None, AGENTACTIONS]:
         try:
             logfire.info(f"User prompt: {user_prompt}")
-            action = self.deps.client.chat.completions.create(
+            action = await self.deps.client.chat.completions.create(
                 model=self.deps.model,
                 response_model=AGENTACTIONS,
                 messages=[
@@ -432,7 +433,7 @@ class Agent:
         - turn_off - Turns off the selected lights or zone
         - set_scene - Sets the scene in the selected zone
         - set_brightness - Sets the brightness of the selected lights or zone
-        - set_temperature - Sets the temperature of the selected lights or zone
+        - 1erature - Sets the temperature of the selected lights or zone
 
         Each tool requires:
         - thinking: Your reasoning for selecting this action
