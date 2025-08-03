@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 
+import json
 import os
+import textwrap
 from pathlib import Path
 from typing import Any, List, Optional, Literal, Union, Dict
 from openai import AsyncOpenAI, OpenAI
 from pydantic import Field, create_model, ConfigDict, BaseModel
 from rich import print
 import instructor
+import logfire
+
 
 from Prometheus import Bridgette
 from Prometheus.device import HueZone, HueResource, HueLight, HueRoom
@@ -120,13 +124,6 @@ Considerations:
 #############################################################
 ######### STATE MANAGER AND DEPENDENCIES DEFINITION #########
 #############################################################
-
-
-bridge = Bridgette()
-print(dir(bridge.zones["office"]))
-print(bridge.zones["office"].children)
-
-
 class CustomBaseModel(BaseModel):
     class Config:
         arbitrary_types_allowed=True
@@ -140,18 +137,21 @@ class DependenciesManager(CustomBaseModel):
     client: Any = Field(description="The instructor client used for LLM interactions.",)
     max_retries: int = Field(default=3, description="The maximum number of retries for LLM calls.",)
     bridge: Bridgette = Field(description="The Bridgette instance used for interacting with the Hue ecosystem.",)
+    model: str = Field(description="The model used for LLM interactions.",default=None)
 
 
 class Brightness(BaseModel):
     brightness: Union[int,float] = Field(description="""The user's desired brightness level.
                                          Can be expressed in absolute values (int) or percentages (float).
                                          If a percentage is given, the absolute value will be based on the current light state.
-                                         If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3.""",
+                                         If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3. If the user says 'increase brightness by 10%' return 0.1. If the user says 'decrease brightness by 40%' return -0.4.""",
                                          examples=[30,0.5, 0.75, 100, 50, 0.25,
                                                    -40,-0.2,-100],
                                          ge=-100, le=100,
                                          )
-    delta: bool = Field(description="Whether the value is set in absolute or relative terms. If True, the current brightness will be adjusted by the given value. If False, the brightness will be set to the given value. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+    relative: bool = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+
+    up_down: Literal['up','down'] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down")
     
 
 class Command(BaseModel):
@@ -198,10 +198,7 @@ class TurnOn(BaseModel):
         else:
             deps.bridge.zones[command.zone].turn_on()
         
-        state.bridge_state = deps.bridge.get_state()
-
-    def summarise(self, state: StateManager):
-        pass
+        state.bridge_state = deps.bridge.get_current_state()
 
 class TurnOff(BaseModel):
     """Turn off the light or a zone"""
@@ -209,6 +206,7 @@ class TurnOff(BaseModel):
     action_type: Literal["turn_off"] = "turn_off"
     command: Command = Field(description="Details of the action to be performed")
 
+    @logfire.instrument('turn_off', extract_args=True, record_return=True)
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to turn off the lights.")
@@ -220,7 +218,7 @@ class TurnOff(BaseModel):
         else:
             deps.bridge.zones[command.zone].turn_off()
         
-        state.bridge_state = deps.bridge.get_state()
+        state.bridge_state = deps.bridge.get_current_state()
 
 
 class SetScene(BaseModel):
@@ -229,6 +227,7 @@ class SetScene(BaseModel):
     action_type: Literal["set_scene"] = "set_scene"
     command: Command = Field(description="Details of the action to be performed")
 
+    @logfire.instrument('set_scene', extract_args=True, record_return=True)
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to set the scene.")
@@ -238,7 +237,7 @@ class SetScene(BaseModel):
         # Set the scene in the specified zone
         deps.bridge.zones[command.zone].set_scene(command.scene)
         
-        state.bridge_state = deps.bridge.get_state()
+        state.bridge_state = deps.bridge.get_current_state()
 
 class SetBrightness(BaseModel):
     """Set the brightness of the specified zone or light.
@@ -247,6 +246,7 @@ class SetBrightness(BaseModel):
     action_type: Literal["set_brightness"] = "set_brightness"
     command: Command = Field(description="Details of the action to be performed")
 
+    @logfire.instrument('set_brightness', extract_args=True, record_return=True)
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to set the brightness.")
@@ -257,13 +257,13 @@ class SetBrightness(BaseModel):
         if command.light:
             current_brightness = state.bridge_state['zones'][command.zone]['devices'][command.light]["brightness"]
             if isinstance(command.brightness.brightness, float):
-                if command.brightness.delta:
+                if command.brightness.relative:
                     new_brightness = current_brightness + (current_brightness * command.brightness)
                 else:
                     new_brightness = command.brightness.brightness
 
             elif isinstance(command.brightness.brightness, int):
-                if command.brightness.delta:
+                if command.brightness.relative:
                     new_brightness = current_brightness + command.brightness.brightness
                 else:
                     new_brightness = command.brightness.brightness
@@ -275,19 +275,23 @@ class SetBrightness(BaseModel):
             avg_brightness = sum(on_devices.values()) / len(on_devices)
 
             if isinstance(command.brightness.brightness, float):
-                if command.brightness.delta:
-                    new_brightness = avg_brightness + (avg_brightness * command.brightness.brightness)
+                if command.brightness.relative:
+                    if command.brightness.up_down == 'down':
+                        delta_brightness = -command.brightness.brightness
+                    new_brightness = avg_brightness + (avg_brightness * delta_brightness)
                 else:
                     new_brightness = command.brightness.brightness
             elif isinstance(command.brightness.brightness, int):
-                if command.brightness.delta:
-                    new_brightness = avg_brightness + command.brightness.brightness
+                if command.brightness.relative:
+                    if command.brightness.up_down == 'down':
+                        delta_brightness = -command.brightness.brightness
+                    new_brightness = avg_brightness + delta_brightness
                 else:
                     new_brightness = command.brightness.brightness
 
             deps.bridge.zones[command.zone].change_brightness(new_brightness)
 
-        state.bridge_state = deps.bridge.get_state()
+        state.bridge_state = deps.bridge.get_current_state()
 
 
 class SetTemperature(BaseModel):
@@ -296,6 +300,7 @@ class SetTemperature(BaseModel):
     action_type: Literal["set_temperature"] = "set_temperature"
     command: Command = Field(description="Details of the action to be performed")
     
+    @logfire.instrument('set_temperature', extract_args=True, record_return=True)   
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to set the temperature.")
@@ -308,7 +313,7 @@ class SetTemperature(BaseModel):
         else:
             deps.bridge.zones[command.zone].change_temp(command.temperature)
         
-        state.bridge_state = deps.bridge.get_state()
+        state.bridge_state = deps.bridge.get_current_state()
 
 class Dim(BaseModel):
     """Dim the specified zone or light by 50% of its current brightness."""
@@ -338,43 +343,46 @@ AGENTACTIONS = Union[TurnOn,
                     #  Dim
                      ]
 
-TEST_MODEL_LARGE = "qwen/qwen3-235b-a22b:free"
+TEST_MODEL_LARGE_FREE = "qwen/qwen3-235b-a22b:free"
 
-##TODO Add tool descriptions and examples
-SYS_PROMPT_COMMAND = """You are an assistant parsing a command to be executed by a light controlling system.
-You have access to the following tools:
-- turn_on - Turns on the selected lights or zone
-- turn_off - Turns off the selected lights or zone
-- set_scene - Sets the scene in the selected zone
-- set_brightness - Sets the brightness of the selected lights or zone
-- set_temperature - Sets the temperature of the selected lights or zone
-
-Each tool requires:
-- thinknig: Your reasoning for selecting this action
-- action_type: The exact name of the selected tool
-- command: A structured command containing the details of the action to be performed.
-"""
 
 class Agent:
 
-    def __init__(self):
+    @logfire.instrument('agent_initialisation', extract_args=True, record_return=True)
+    def __init__(self, 
+                 api_key: str = os.getenv("OPENROUTER_API_KEY"),
+                 base_url: str = os.getenv("OPENROUTER_BASE_URL"),
+                 max_retries: int = 3,
+                 model=TEST_MODEL_LARGE_FREE) -> None:
 
+        if "localhost" in base_url:
+            api_key = "EMPTY"
+            base_url = "http://localhost:8000/v1"
         self.bridge: Bridgette = Bridgette()
-        self.state: StateManager = StateManager(bridge_state=self.bridge.get_state())
-        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(OpenAI(
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-            base_url=os.getenv("BASE_URL_OPENROUTER")
-        )),
-        max_retries=5,
-        bridge=self.bridge)
+        self.state: StateManager = StateManager(bridge_state=self.bridge.get_current_state())
+        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(OpenAI(api_key=api_key,
+                                                                                                  base_url=base_url)),
+                                                            max_retries=max_retries,
+                                                            bridge=self.bridge)
+        if "localhost" in base_url:
+            self.deps.model = self.deps.client.models.list().data[0].id
+        else:
+            self.deps.model = model
 
+
+        self.SYS_PROMPT = self._build_sys_prompt(self.deps, self.state)
+        logfire.instrument_openai()
+        logfire.info(f"Model: {self.deps.model}")
+
+    @logfire.instrument('executing_action', extract_args=True, record_return=True)
     def action(self, user_prompt: str) -> None:
         try:
+            logfire.info(f"User prompt: {user_prompt}")
             action = self.deps.client.chat.completions.create(
-                model=TEST_MODEL_LARGE,
+                model=self.deps.model,
                 response_model=AGENTACTIONS,
                 messages=[
-                    {"role":"system", "content": SYS_PROMPT_COMMAND},
+                    {"role":"system", "content": self.SYS_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
                 max_retries=self.deps.max_retries,
@@ -382,5 +390,57 @@ class Agent:
             
             action.execute(self.state, self.deps, action.command)
         except Exception as e:
-            print(f"Error executing action: {e}")
+            logfire.error(f"Error executing action: {e}")
             return None
+    
+    def format_sections(self, data: dict) -> str:
+        """Return a bullet-formatted string from a dict[str, list[str]]."""
+        lines = []
+        for section, items in data.items():
+            lines.append(f"* {section}:")
+            for item in items:
+                lines.append(f"    - {item}")
+        return "\n".join(lines)
+    
+    def _build_sys_prompt(self, deps: DependenciesManager, state:StateManager) -> str:
+        zones = ",\n".join(deps.bridge.zones.keys())
+        zone_devices = {zone:list(val['devices'].keys()) for zone, val in state.bridge_state['zones'].items()}
+
+        zone_devices = self.format_sections(zone_devices)
+
+
+        SYS_PROMPT_COMMAND = f"""You are an assistant parsing a command to be executed by a light controlling system.
+        You have access to the following tools:
+        - turn_on - Turns on the selected lights or zone
+        - turn_off - Turns off the selected lights or zone
+        - set_scene - Sets the scene in the selected zone
+        - set_brightness - Sets the brightness of the selected lights or zone
+        - set_temperature - Sets the temperature of the selected lights or zone
+
+        Each tool requires:
+        - thinking: Your reasoning for selecting this action
+        - action_type: The exact name of the selected tool
+        - command: A structured command containing the details of the action to be performed.
+
+        The available zones are: 
+        {zones}
+        The available devices in each zone are: {zone_devices}
+
+        Keep the replies short and concise, focusing on the action to be performed.
+        """
+        return textwrap.dedent(SYS_PROMPT_COMMAND)
+        
+
+if __name__ == "__main__":
+    user_query = ''
+    logfire.configure(token=os.environ.get("LOGFIRE_TOKEN"), console=False)
+    with logfire.span("Agent Run"):
+        base_url = "http://localhost:8000/v1"
+        agent = Agent(base_url=base_url)
+        while True and user_query.lower() != "exit":
+            try:
+                user_query = input("Enter your command: ")
+                agent.action(user_query)
+            except KeyboardInterrupt:
+                print("\nExiting...")
+                break
