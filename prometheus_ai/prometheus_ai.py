@@ -404,7 +404,8 @@ class Agent:
                         {"role": "user", "content": user_prompt}
                     ],
                     max_retries=self.deps.max_retries,
-                    temperature=0.1),
+                    temperature=0.1,
+                    max_tokens=4096),
                 timeout=30.0
             )
             
