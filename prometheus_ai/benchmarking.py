@@ -121,14 +121,8 @@ def score_action(action, scenario):
 async def run_agent_and_score(
     scenario: Scenario,
     semaphore: asyncio.Semaphore,
-    model: str,
-    base_url: str,
-    max_retries: int = 1,
+    agent: Agent,
     )->int:
-    agent = Agent(benchmarking=True,
-                  max_retries=max_retries,
-                  model=model,
-                  base_url=base_url)
     
     async with semaphore:
         action = await agent.action(scenario.full_command)
@@ -156,13 +150,18 @@ async def benchmark(
     
     print(f"Loaded {len(scenarios)} scenarios after filtering (seed: {seed})")
     
+    # Create a single Agent object to reuse across all scenarios
+    agent = Agent(benchmarking=True,
+                  max_retries=max_retries,
+                  model=model,
+                  base_url=base_url)
+    
+    # Create a semaphore to limit concurrent API calls
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
     results = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
                                                       semaphore=semaphore, 
-                                                      model=model,
-                                                      base_url=base_url,
-                                                      max_retries=max_retries) for scenario in scenarios], desc="Benchmarking yo")
+                                                      agent=agent) for scenario in scenarios], desc="Benchmarking yo")
 
     return sum(results)/len(results) if results else 0
 
@@ -172,10 +171,13 @@ if __name__ == '__main__':
 
     logfire.configure(token=os.environ.get("LOGFIRE_TOKEN"), console=False)
     logfire.instrument_openai()
-    model = "qwen/qwen3-30b-a3b"
+    # model = "qwen/qwen3-30b-a3b"
+    # model = "qwen/qwen3-14b"
     # model ="qwen/qwen3-32b"
     model='Qwen3-0.6B'
     base_url = "http://localhost:8000/v1"
+    # model="deepseek/deepseek-chat-v3-0324"
+    # model ="qwen/qwen3-235b-a22b"
     # base_url = os.getenv("OPENROUTER_BASE_URL")
     max_concurrent_requests = 5
     benchmark_seed = 42  # Use same seed for all model comparisons
@@ -186,13 +188,14 @@ if __name__ == '__main__':
         print(f"Running benchmark with rate limiting (max {max_concurrent_requests} concurrent requests)...")
 
         unimplemented_actions = [
-            "set_color"
+            "set_color",
+            "dim"
         ]
         
         print(f"Excluding actions: {unimplemented_actions}")
         print(f"Using seed: {benchmark_seed} for reproducible results")
         result = asyncio.run(benchmark(
-            # num_scenarios=50,
+            # num_scenarios=100,
             max_concurrent_requests=max_concurrent_requests,
             exclude_actions=unimplemented_actions,
             model=model,
