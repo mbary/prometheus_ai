@@ -429,7 +429,7 @@ class Agent:
                     # max_tokens=4096
                     )
             if self.deps.benchmarking:
-                return action.model_dump()
+                return action
             
             action.execute(self.state, self.deps, action.command)
             

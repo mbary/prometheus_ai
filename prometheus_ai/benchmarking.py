@@ -1,6 +1,9 @@
 import os
 import asyncio
 import random
+import json
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional, Union, List
 
 from pydantic import BaseModel
@@ -44,6 +47,12 @@ class Scenario(BaseModel):
     brightness_up_down: Optional[str]
     color: Optional[str]
     split: str
+class Trajectory(BaseModel):
+    """Trajectory of a scenario."""
+    scenario: Scenario
+    action: Any = None
+    score: int = None
+    error: Optional[str] = None
 
 @logfire.instrument('load_scenarios', extract_args=True, record_return=True)
 def load_scenarios(
@@ -113,7 +122,7 @@ def score_action(action, scenario):
     Scores the action based on the command.
     """
     score = 0
-    if action and action['action_type'] == scenario.action_type:
+    if action and action.action_type == scenario.action_type:
         score = 1
     return score
 
@@ -122,13 +131,18 @@ async def run_agent_and_score(
     scenario: Scenario,
     semaphore: asyncio.Semaphore,
     agent: Agent,
-    )->int:
+    )->List[Trajectory]:
     
     async with semaphore:
         action = await agent.action(scenario.full_command)
         score = score_action(action, scenario)
+        trajectory = Trajectory(
+            scenario=scenario,
+            action=action,
+            score=score
+        )
         logfire.info(f"Score: {score}")
-        return score
+        return trajectory
 
 @logfire.instrument('benchmarking', extract_args=True, record_return=True)
 async def benchmark(
@@ -149,7 +163,7 @@ async def benchmark(
     )
     
     print(f"Loaded {len(scenarios)} scenarios after filtering (seed: {seed})")
-
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     agent = Agent(benchmarking=True,
                   max_retries=max_retries,
                   model=model,
@@ -157,15 +171,23 @@ async def benchmark(
     
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
-    results = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
+    trajectories = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
                                                       semaphore=semaphore, 
                                                       agent=agent) for scenario in scenarios], desc="Benchmarking yo")
+    
+    with open(LOG_PATH / f"benchmark_results_{model}_{len(scenarios)}_{timestamp}.jsonl", 'a') as f:
+        for trajectory in trajectories:
+            f.write(trajectory.model_dump_json() + "\n")
+
+    results = [t.score for t in trajectories if t.score is not None]
 
     return sum(results)/len(results) if results else 0
 
 if __name__ == '__main__':
     import asyncio
     from rich import print
+    LOG_PATH = Path(__file__).parent/"benchmarking/logs/"
+    LOG_PATH.mkdir(parents=True, exist_ok=True)
 
     logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
     logfire.instrument_openai()
@@ -193,7 +215,7 @@ if __name__ == '__main__':
         print(f"Excluding actions: {unimplemented_actions}")
         print(f"Using seed: {benchmark_seed} for reproducible results")
         result = asyncio.run(benchmark(
-            # num_scenarios=100,
+            num_scenarios=10,
             max_concurrent_requests=max_concurrent_requests,
             exclude_actions=unimplemented_actions,
             model=model,
