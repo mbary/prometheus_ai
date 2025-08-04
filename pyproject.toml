@@ -12,6 +12,7 @@ dependencies = [
     "ipywidgets>=8.1.7",
     "logfire>=4.0.0",
     "openai>=1.90.0",
+    "polars>=1.32.0",
     "prometheus",
     "pyaudio>=0.2.14",
     "pydantic>=2.11.7",
