@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import textwrap
+import asyncio
 from pathlib import Path
 from typing import Any, List, Optional, Literal, Union, Dict
 from openai import AsyncOpenAI, OpenAI
@@ -348,7 +349,7 @@ AGENTACTIONS = Union[TurnOn,
                      ]
 
 TEST_MODEL_LARGE_FREE = "qwen/qwen3-235b-a22b:free"
-TEEST_MODEL_LARGE = "qwen/qwen3-235b-a22b"
+TEST_MODEL_LARGE = "qwen/qwen3-235b-a22b"
 
 
 class Agent:
@@ -359,30 +360,31 @@ class Agent:
                  base_url: str = os.getenv("OPENROUTER_BASE_URL"),
                  max_retries: int = 3,
                 #  model=TEST_MODEL_LARGE_FREE,
-                model = TEEST_MODEL_LARGE,
+                 model = TEST_MODEL_LARGE,
                  benchmarking: bool = False) -> None:
 
         if "localhost" in base_url:
             api_key = "EMPTY"
             base_url = "http://localhost:8000/v1"
         
-        # if benchmarking:
-        #     self.bridge = None
-        #     self.state = StateManager(bridge_state={})
-        # else:
-        self.bridge: Bridgette = Bridgette()
-        self.state: StateManager = StateManager(bridge_state=self.bridge.get_current_state())
-        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(AsyncOpenAI(api_key=api_key,
-                                                                                                  base_url=base_url)),
+        if benchmarking:
+            self.bridge = None
+            self.state = StateManager(bridge_state={})
+        else:
+            self.bridge: Bridgette = Bridgette()
+            self.state: StateManager = StateManager(bridge_state=self.bridge.get_current_state())
+
+        openai_client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=30.0,  
+            max_retries=0)
+            
+        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(openai_client),
                                                             max_retries=max_retries,
                                                             bridge=self.bridge,
                                                             benchmarking=benchmarking,
                                                             model=model)
-        # if "localhost" in base_url:
-        #     self.deps.model = self.deps.client.models.list().data[0].id
-        # else:
-        #     self.deps.model = model
-
 
         self.SYS_PROMPT = self._build_sys_prompt(self.deps, self.state)
         logfire.instrument_openai()
@@ -392,21 +394,28 @@ class Agent:
     async def action(self, user_prompt: str) -> Union[None, AGENTACTIONS]:
         try:
             logfire.info(f"User prompt: {user_prompt}")
-            action = await self.deps.client.chat.completions.create(
-                model=self.deps.model,
-                response_model=AGENTACTIONS,
-                messages=[
-                    {"role":"system", "content": self.SYS_PROMPT},
-                    {"role": "user", "content": user_prompt}
-                ],
-                max_retries=self.deps.max_retries,
-                temperature=0.1)
+            
+            action = await asyncio.wait_for(
+                self.deps.client.chat.completions.create(
+                    model=self.deps.model,
+                    response_model=AGENTACTIONS,
+                    messages=[
+                        {"role":"system", "content": self.SYS_PROMPT},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_retries=self.deps.max_retries,
+                    temperature=0.1),
+                timeout=30.0
+            )
             
             if self.deps.benchmarking:
                 return action.model_dump()
             
             action.execute(self.state, self.deps, action.command)
             
+        except asyncio.TimeoutError:
+            logfire.error(f"Timeout executing action for prompt: {user_prompt}")
+            return None
         except Exception as e:
             logfire.error(f"Error executing action: {e}")
             return None
@@ -421,10 +430,22 @@ class Agent:
         return "\n".join(lines)
     
     def _build_sys_prompt(self, deps: DependenciesManager, state:StateManager) -> str:
-        zones = ",\n".join(deps.bridge.zones.keys())
-        zone_devices = {zone:list(val['devices'].keys()) for zone, val in state.bridge_state['zones'].items()}
+        if deps.benchmarking:
+            # Use mock data for benchmarking to avoid bridge dependency
+            zones = "office, lounge, lounge floor lights, bedroom, all, tv"
+            zone_devices = {
+                "office": ["desk", "ceiling", "floor"],
+                "lounge": ["standing", "flartsy", "tv1", "tv2"],
+                "bedroom": ["ceiling", "ceiling"],
+                "tv": ["sub"],
+                "lounge floor lamps":["standing", "flartsy"],
 
-        zone_devices = self.format_sections(zone_devices)
+            }
+            zone_devices = self.format_sections(zone_devices)
+        else:
+            zones = ",\n".join(deps.bridge.zones.keys())
+            zone_devices = {zone:list(val['devices'].keys()) for zone, val in state.bridge_state['zones'].items()}
+            zone_devices = self.format_sections(zone_devices)
 
 
         SYS_PROMPT_COMMAND = f"""You are an assistant parsing a command to be executed by a light controlling system.

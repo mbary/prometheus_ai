@@ -108,34 +108,31 @@ def load_scenarios(
 
 
 @logfire.instrument('score_action', extract_args=True, record_return=True)
-async def score_action(action, scenario):
+def score_action(action, scenario):
     """
     Scores the action based on the command.
     """
-    # Placeholder for scoring logic
-    # This should be replaced with actual scoring logic
     score = 0
     if action and action['action_type'] == scenario.action_type:
-        score = 1  # Example score for a correct action
+        score = 1
     return score
 
 @logfire.instrument('run_agent_and_score', extract_args=True, record_return=True)
 async def run_agent_and_score(
     scenario: Scenario,
     semaphore: asyncio.Semaphore,
-    model:str,
+    model: str,
     base_url: str,
-    benchmarking: bool = True,
     max_retries: int = 1,
     )->int:
+    agent = Agent(benchmarking=True,
+                  max_retries=max_retries,
+                  model=model,
+                  base_url=base_url)
+    
     async with semaphore:
-        agent= Agent(benchmarking=benchmarking,
-                     max_retries=max_retries,
-                     model=model,
-                     base_url=base_url)
-
         action = await agent.action(scenario.full_command)
-        score = await score_action(action, scenario)
+        score = score_action(action, scenario)
         logfire.info(f"Score: {score}")
         return score
 
@@ -162,7 +159,10 @@ async def benchmark(
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
     results = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
-                                                      semaphore=semaphore, model=model, max_retries=max_retries, base_url=base_url) for scenario in scenarios], desc="Benchmarking yo")
+                                                      semaphore=semaphore, 
+                                                      model=model,
+                                                      base_url=base_url,
+                                                      max_retries=max_retries) for scenario in scenarios], desc="Benchmarking yo")
 
     return sum(results)/len(results) if results else 0
 
