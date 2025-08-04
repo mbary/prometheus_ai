@@ -178,11 +178,11 @@ class Command(BaseModel):
 class Action(BaseModel):
     # thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
 
-    selected_action: Union[TurnOn, TurnOff, SetScene, SetBrightness, Dim, SetTemperature] = Field(description="The type of action to be performed.")
+    selected_action: Union[turn_on, turn_off, set_scene, set_brightness, Dim, set_temperature] = Field(description="The type of action to be performed.")
     command: Command = Field(description="The details of the command to be executed.")
 
 
-class TurnOn(BaseModel):
+class turn_on(BaseModel):
     """Turn on the light or a zone"""
     thinking: str = Field(description="Think about the command to turn on the lights in the specified zone.")
     action_type: Literal["turn_on"] = "turn_on"
@@ -202,7 +202,7 @@ class TurnOn(BaseModel):
         
         state.bridge_state = deps.bridge.get_current_state()
 
-class TurnOff(BaseModel):
+class turn_off(BaseModel):
     """Turn off the light or a zone"""
     thinking: str = Field(description="Think about the command to turn off the lights in the specified zone.")
     action_type: Literal["turn_off"] = "turn_off"
@@ -223,7 +223,7 @@ class TurnOff(BaseModel):
         state.bridge_state = deps.bridge.get_current_state()
 
 
-class SetScene(BaseModel):
+class set_scene(BaseModel):
     """Set the selected scene in the specified zone"""
     thinking: str = Field(description="What scene does the user what to set?")
     action_type: Literal["set_scene"] = "set_scene"
@@ -241,7 +241,7 @@ class SetScene(BaseModel):
         
         state.bridge_state = deps.bridge.get_current_state()
 
-class SetBrightness(BaseModel):
+class set_brightness(BaseModel):
     """Set the brightness of the specified zone or light.
     Can be set in absolute terms (e.g. 50) or relative terms (e.g. increase by 20%)."""
     thinking: str = Field(description="What brightness does the user want to set?")
@@ -296,7 +296,7 @@ class SetBrightness(BaseModel):
         state.bridge_state = deps.bridge.get_current_state()
 
 
-class SetTemperature(BaseModel):
+class set_temperature(BaseModel):
     """Set the temperature of the specified zone or light."""
     thinking: str = Field(description="How warm does the user want the lights to be?")
     action_type: Literal["set_temperature"] = "set_temperature"
@@ -340,12 +340,12 @@ class Dim(BaseModel):
 
 
         
-AGENTACTIONS = Union[TurnOn, 
-                     TurnOff, 
-                     SetScene, 
-                     SetBrightness, 
-                     SetTemperature, 
-                     Dim
+AGENTACTIONS = Union[turn_on, 
+                     turn_off, 
+                     set_scene, 
+                     set_brightness, 
+                     set_temperature, 
+                    #  Dim
                      ]
 
 TEST_MODEL_LARGE_FREE = "qwen/qwen3-235b-a22b:free"
@@ -374,13 +374,20 @@ class Agent:
             self.bridge: Bridgette = Bridgette()
             self.state: StateManager = StateManager(bridge_state=self.bridge.get_current_state())
 
-        openai_client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            timeout=30.0,  
-            max_retries=0)
-            
-        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(openai_client),
+        try:
+            openai_client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=100.0,  
+                max_retries=0)
+        except Exception as e:
+            logfire.error(f"Error initializing OpenAI client: {e}")
+            raise e
+        mode = instructor.Mode.TOOLS
+        # mode = instructor.Mode.JSON
+        self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(openai_client, 
+                                                                                        mode=mode
+                                                                                           ),
                                                             max_retries=max_retries,
                                                             bridge=self.bridge,
                                                             benchmarking=benchmarking,
@@ -389,14 +396,28 @@ class Agent:
         self.SYS_PROMPT = self._build_sys_prompt(self.deps, self.state)
         logfire.instrument_openai()
         logfire.info(f"Model: {self.deps.model}")
+        logfire.info(f"Mode: {mode}")
+        logfire.info(f"Deps: {self.deps.model_dump()}")
 
     @logfire.instrument('executing_action', extract_args=True, record_return=True)
     async def action(self, user_prompt: str) -> Union[None, AGENTACTIONS]:
         try:
             logfire.info(f"User prompt: {user_prompt}")
             
-            action = await asyncio.wait_for(
-                self.deps.client.chat.completions.create(
+            # action = await asyncio.wait_for(
+            #     self.deps.client.chat.completions.create(
+            #         model=self.deps.model,
+            #         response_model=AGENTACTIONS,
+            #         messages=[
+            #             {"role":"system", "content": self.SYS_PROMPT},
+            #             {"role": "user", "content": user_prompt}
+            #         ],
+            #         max_retries=self.deps.max_retries,
+            #         temperature=0.1,
+            #         max_tokens=4096),
+            #     timeout=100.0
+            # )
+            action = await self.deps.client.chat.completions.create(
                     model=self.deps.model,
                     response_model=AGENTACTIONS,
                     messages=[
@@ -405,10 +426,8 @@ class Agent:
                     ],
                     max_retries=self.deps.max_retries,
                     temperature=0.1,
-                    max_tokens=4096),
-                timeout=30.0
-            )
-            
+                    # max_tokens=4096
+                    )
             if self.deps.benchmarking:
                 return action.model_dump()
             
@@ -455,7 +474,7 @@ class Agent:
         - turn_off - Turns off the selected lights or zone
         - set_scene - Sets the scene in the selected zone
         - set_brightness - Sets the brightness of the selected lights or zone
-        - 1erature - Sets the temperature of the selected lights or zone
+        - set_temperature - Sets the temperature of the selected lights or zone
 
         Each tool requires:
         - thinking: Your reasoning for selecting this action
