@@ -149,14 +149,12 @@ async def benchmark(
     )
     
     print(f"Loaded {len(scenarios)} scenarios after filtering (seed: {seed})")
-    
-    # Create a single Agent object to reuse across all scenarios
+
     agent = Agent(benchmarking=True,
                   max_retries=max_retries,
                   model=model,
                   base_url=base_url)
     
-    # Create a semaphore to limit concurrent API calls
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
     results = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
@@ -169,7 +167,7 @@ if __name__ == '__main__':
     import asyncio
     from rich import print
 
-    logfire.configure(token=os.environ.get("LOGFIRE_TOKEN"), console=False)
+    logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
     logfire.instrument_openai()
     # model = "qwen/qwen3-30b-a3b"
     # model = "qwen/qwen3-14b"

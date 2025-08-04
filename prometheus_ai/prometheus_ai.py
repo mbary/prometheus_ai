@@ -492,7 +492,7 @@ class Agent:
 
 if __name__ == "__main__":
     user_query = ''
-    logfire.configure(token=os.environ.get("LOGFIRE_TOKEN"), console=False)
+    logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
     with logfire.span("Agent Run"):
         base_url = "http://localhost:8000/v1"
         agent = Agent(base_url=base_url)
