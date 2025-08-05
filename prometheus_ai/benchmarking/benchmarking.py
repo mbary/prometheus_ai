@@ -191,7 +191,7 @@ def main():
     args = parser.parse_args()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    LOG_PATH = Path(__file__).parent / "benchmarking/logs/"
+    LOG_PATH = Path("./logs/")
     LOG_PATH.mkdir(parents=True, exist_ok=True)
     
     logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
