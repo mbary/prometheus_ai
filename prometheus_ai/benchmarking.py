@@ -2,6 +2,7 @@ import os
 import asyncio
 import random
 import json
+import argparse
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, Union, List
@@ -194,79 +195,117 @@ async def benchmark(
 
     return trajectories
 
-if __name__ == '__main__':
-    import asyncio
-    from rich import print
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    LOG_PATH = Path(__file__).parent/"benchmarking/logs/"
-    LOG_PATH.mkdir(parents=True, exist_ok=True)
+def main():
+    """Main function that coordinates the benchmarking process with command-line arguments."""
+    parser = argparse.ArgumentParser(description="Run benchmarking for Prometheus AI agent")
+    
+    parser.add_argument("--seed", type=int, default=42, 
+                        help="Random seed for reproducible results (default: 42)")
+    parser.add_argument("--concurrent", type=int, default=5, 
+                        help="Maximum number of concurrent requests (default: 5)")
+    parser.add_argument("--samples", type=int, default=10, 
+                        help="Number of scenarios to benchmark (default: 10)")
+    parser.add_argument("--model-name", type=str, default="Qwen3-0.6B", 
+                        help="Model name to use for benchmarking (default: Qwen3-0.6B)")
+    parser.add_argument("--skip-actions", nargs="*", default=["set_color", "dim"], 
+                        help="Actions to skip during benchmarking (default: set_color dim)")
+    parser.add_argument("--provider", type=str, default="local",
+                        help="Provider for the model API (default: local)")
 
+    args = parser.parse_args()
+
+    PROVIDERS = {
+        "local": "http://localhost:8000/v1",
+        "openrouter": "https://openrouter.ai/api/v1",
+        "anthropic": "https://api.anthropic.com/v1/",
+        "deepinfra": "https://api.deepinfra.com/v1/openai",
+        "openai": "" #A default value is used if not specified and using OAI sdk - which I am
+    }
+
+    base_url = PROVIDERS.get(args.provider)
+    
+    # Setup
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    LOG_PATH = Path(__file__).parent / "benchmarking/logs/"
+    LOG_PATH.mkdir(parents=True, exist_ok=True)
+    
     logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
     logfire.instrument_openai()
-    # model = "qwen/qwen3-30b-a3b"
-    # model = "qwen/qwen3-14b"
-    # model ="qwen/qwen3-32b"
-    model='Qwen3-0.6B'
-    base_url = "http://localhost:8000/v1"
-    # model="deepseek/deepseek-chat-v3-0324"
-    # model ="qwen/qwen3-235b-a22b"
-    # base_url = os.getenv("OPENROUTER_BASE_URL")
-    max_concurrent_requests = 5
-    benchmark_seed = 42  # Use same seed for all model comparisons
     
-    with logfire.span(f'benchmarking: {model}'):
+    # Print configuration
+    print(f"   Starting benchmark with configuration:")
+    print(f"   Model: {args.model_name}")
+    print(f"   Provider: {args.provider}")
+    print(f"   Base URL: {base_url}")
+    print(f"   Samples: {args.samples}")
+    print(f"   Concurrent requests: {args.concurrent}")
+    print(f"   Seed: {args.seed}")
+    print(f"   Skipping actions: {args.skip_actions}")
+    
+    with logfire.span(f'benchmarking: {args.model_name}'):
         logfire.info("Starting benchmarking...")
+        logfire.info(f"Start at: {datetime.now().isoformat()}")
+        logfire.info(f"Provider: {args.provider}")
+        logfire.info(f"Model: {args.model_name}")
+        logfire.info(f"Base URL: {base_url}")
+        logfire.info(f"Samples: {args.samples}")
+        logfire.info(f"Concurrent requests: {args.concurrent}")
+        logfire.info(f"Seed: {args.seed}")
+        logfire.info(f"Skipping actions: {args.skip_actions}")
 
-        print(f"Running benchmark with rate limiting (max {max_concurrent_requests} concurrent requests)...")
-
-        unimplemented_actions = [
-            "set_color",
-            "dim"
-        ]
-        ## TODO mve the saving of logs to file outsite the benchmark
-        ## include it here and appent at the beginning a metadata class
-        ## where all the shit is included like num of samples/seed/model/excluded etc
-        print(f"Excluding actions: {unimplemented_actions}")
-        print(f"Using seed: {benchmark_seed} for reproducible results")
+        print(f"   Running benchmark with rate limiting (max {args.concurrent} concurrent requests)...")
+        print(f"   Excluding actions: {args.skip_actions}")
+        print(f"   Using seed: {args.seed} for reproducible results\n\n")
+        
         results = asyncio.run(benchmark(
-            num_scenarios=50,
-            max_concurrent_requests=max_concurrent_requests,
-            exclude_actions=unimplemented_actions,
-            model=model,
-            seed=benchmark_seed,
+            num_scenarios=args.samples,
+            max_concurrent_requests=args.concurrent,
+            exclude_actions=args.skip_actions,
+            model=args.model_name,
+            seed=args.seed,
             base_url=base_url,
         ))
-
-        with open(LOG_PATH / f"benchmark_results_{model}_{len(results)}_{timestamp}.jsonl", 'a') as f:
+        
+        # Save results to file
+        with open(LOG_PATH / f"benchmark_results_{args.model_name.replace('/', '_').replace("-","_")}_{len(results)}_{timestamp}.jsonl", 'a') as f:
             metadata = {
-                "num_samples": len(results),
-                "seed": benchmark_seed,
-                "model": model,
-                "excluded_actions": unimplemented_actions
+                "samples": len(results),
+                "seed": args.seed,
+                "model": args.model_name,
+                "excluded_actions": args.skip_actions,
+                "concurrent_requests": args.concurrent,
+                "base_url": base_url
             }
             if "localhost" in base_url:
                 metadata["locally_served"] = True
-
+            
             f.write(json.dumps({"metadata": metadata}) + "\n")
             for trajectory in results:
                 f.write(trajectory.model_dump_json() + "\n")
-
+        
+        # Calculate and display results
         final_score_list_no_errors = [t.score for t in results if t.score is not None]
         final_score_list_w_errors = [t.score if t.score else 0 for t in results]
         
         final_score_no_errors = sum(final_score_list_no_errors) / len(final_score_list_no_errors) if final_score_list_no_errors else 0
         final_score_with_errors = sum(final_score_list_w_errors) / len(final_score_list_w_errors) if final_score_list_w_errors else 0
-
+        
         successful_trajectories = [t for t in results if not t.error]
         error_trajectories = [t for t in results if t.error]
-
+        
+        print(f"\nBenchmark Results:")
         print(f"Total scenarios: {len(results)}")
-        print(f"Benchmarking succesfully completed for {len(successful_trajectories)}/ {len(results)} scenarios.")
-        print(f"Benchmarking failed for {len(error_trajectories)}/ {len(results)} scenarios.")
-        print(f"Benchmark result (no errors): {final_score_no_errors}")
-        print(f"Benchmark result (with errors): {final_score_with_errors}")
+        print(f"Successfully completed: {len(successful_trajectories)}/{len(results)} scenarios")
+        print(f"Failed: {len(error_trajectories)}/{len(results)} scenarios")
+        print(f"Benchmark score (no errors): {final_score_no_errors:.3f}")
+        print(f"Benchmark score (with errors): {final_score_with_errors:.3f}")
+        
+        logfire.info("Benchmark Results:")
+        logfire.info(f"Successfully completed: {len(successful_trajectories)}/{len(results)} scenarios.")
+        logfire.info(f"Failed: {len(error_trajectories)}/{len(results)} scenarios.")
+        logfire.info(f"Completed (no errors) with result: {final_score_no_errors}")
+        logfire.info(f"Completed (with errors) with result: {final_score_with_errors}")
 
-        logfire.info(f"Benchmarking succesfully completed for {len(successful_trajectories)}/ {len(results)} scenarios.")
-        logfire.info(f"Benchmarking failed for {len(error_trajectories)}/ {len(results)} scenarios.")
-        logfire.info(f"Benchmark completed (no errors) with result: {final_score_no_errors}")
-        logfire.info(f"Benchmark completed (with errors) with result: {final_score_with_errors}")
+
+if __name__ == '__main__':
+    main()
