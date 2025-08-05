@@ -151,9 +151,9 @@ class Brightness(BaseModel):
                                                    -40,-0.2,-100],
                                          ge=-100, le=100,
                                          )
-    relative: Optional[bool] = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+    relative: bool = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
 
-    up_down: Optional[Literal['up','down']] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down")
+    up_down: Literal['up','down'] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down")
 
 class Command(BaseModel):
     # thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
@@ -350,8 +350,6 @@ class Agent:
     @logfire.instrument('agent_initialisation', extract_args=True, record_return=True)
     def __init__(self, 
                  provider: str = "openrouter",
-                 api_key: str = None,
-                 base_url: str = None,
                  max_retries: int = 3,
                  model = TEST_MODEL_LARGE,
                  benchmarking: bool = False) -> None:
@@ -383,22 +381,19 @@ class Agent:
                 "default_api_key": None
             }
         }
-
         if provider not in PROVIDERS:
             raise ValueError(f"Unsupported provider: {provider}. Supported providers: {list(PROVIDERS.keys())}")
         
         provider_config = PROVIDERS[provider]
+
+        base_url = provider_config["base_url"]
         
-        if base_url is None:
-            base_url = provider_config["base_url"]
-        
-        if api_key is None:
-            if provider_config["api_key_env"]:
-                api_key = os.getenv(provider_config["api_key_env"])
-                if api_key is None:
-                    raise ValueError(f"API key not found in environment variable {provider_config['api_key_env']} for provider {provider}")
-            else:
-                api_key = provider_config["default_api_key"]
+        if provider_config["api_key_env"]:
+            api_key = os.getenv(provider_config["api_key_env"])
+            if api_key is None:
+                raise ValueError(f"API key not found in environment variable {provider_config['api_key_env']} for provider {provider}")
+        else:
+            api_key = provider_config["default_api_key"]
         
         if benchmarking:
             self.bridge = None
@@ -408,14 +403,19 @@ class Agent:
             self.state: StateManager = StateManager(bridge_state=self.bridge.get_current_state())
 
         try:
-            openai_client = AsyncOpenAI(
-                api_key=api_key,
-                base_url=base_url)
+            if provider == "openai":
+                openai_client = AsyncOpenAI()
+            else:
+                openai_client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url=base_url)
         except Exception as e:
             logfire.error(f"Error initializing OpenAI client: {e}")
             raise e
-        mode = instructor.Mode.TOOLS
-        # mode = instructor.Mode.JSON
+        if provider == 'local':
+            mode = instructor.Mode.TOOLS
+        else:
+            mode = instructor.Mode.JSON
         self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(openai_client, 
                                                                                         mode=mode
                                                                                            ),
