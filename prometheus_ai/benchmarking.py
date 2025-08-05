@@ -149,7 +149,7 @@ async def benchmark(
     exclude_actions: Optional[List[str]] = None,
     max_retries: int = 1,
     seed: Optional[int] = None,
-) -> int:
+) -> List[Trajectory]:
     scenarios = load_scenarios(
         'mbary/hue_commands_synth_3k', 
         split='test', 
@@ -168,7 +168,7 @@ async def benchmark(
 
     trajectories = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
                                                       semaphore=semaphore, 
-                                                      agent=agent) for scenario in scenarios], desc="Benchmarking yo")
+                                                      agent=agent) for scenario in scenarios], desc=f"Benchmarking {model} yo")
     return trajectories
 
 def main():
