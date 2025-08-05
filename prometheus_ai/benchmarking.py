@@ -5,15 +5,15 @@ import json
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Union, List
+from typing import Optional, List
 
-from pydantic import BaseModel
 from prometheus_ai import Agent
+from utils.project_types import Scenario, Trajectory
 
 import logfire
-from datasets import load_dataset, Dataset
+from datasets import load_dataset
 from tqdm.asyncio import tqdm
-from rich import print, print_json
+from rich import print
 
 ##TODOs
 """ 
@@ -35,25 +35,6 @@ from rich import print, print_json
                 - [] ensure that scene actually belongs to the zone
 
 """
-class Scenario(BaseModel):
-    id:int
-    full_command: str
-    wakeword_phrase: str
-    action_type: str
-    zone: str
-    light: Optional[str]
-    temperature: Optional[int]
-    brightness: Optional[Union[float,int]]
-    brightness_relative: Optional[bool]
-    brightness_up_down: Optional[str]
-    color: Optional[str]
-    split: str
-class Trajectory(BaseModel):
-    """Trajectory of a scenario."""
-    scenario: Scenario
-    action: Any = None
-    score: Union[int,None] = None
-    error: Optional[str] = None
 
 @logfire.instrument('load_scenarios', extract_args=True, record_return=True)
 def load_scenarios(
@@ -103,6 +84,7 @@ def load_scenarios(
             wakeword_phrase=item['wakeword_phrase'],
             action_type=item['action'],
             zone=item['zone'],
+            scene=item.get('scene'),
             light=item.get('light'),
             temperature=item.get('temperature'),
             brightness=item.get('brightness'),

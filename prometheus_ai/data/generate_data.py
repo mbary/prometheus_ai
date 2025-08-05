@@ -11,6 +11,9 @@ import json
 from rich import print
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm
+
+from ..utils.project_types import Brightness
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -21,21 +24,7 @@ MODEL = "deepseek/deepseek-chat-v3-0324"
 DATA_DIR = Path("./synth_commands")
 
 semaphore = asyncio.Semaphore(5)
-
-class Brightness(BaseModel):
-    
-    brightness: Union[int,float] = Field(description="""The user's desired brightness level.
-                                         Can be expressed in absolute values (int) or percentages (float).
-                                         If a percentage is given, the absolute value will be based on the current light state.
-                                         If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3. If the user says 'increase brightness by 10%' return 0.1. If the user says 'decrease brightness by 40%' return -0.4.""",
-                                         examples=[30,0.5, 0.75, 100, 50, 0.25,
-                                                   -40,-0.2,-100],
-                                         ge=-100, le=100,
-                                         )
-    relative: bool = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
-
-    up_down: Literal['up','down'] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down")
-    
+  
 
 class SynthCommand(BaseModel):
     thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
@@ -82,17 +71,15 @@ class Scenario(BaseModel):
     id: int
     full_command: str
     wakeword_phrase: str
-    action: str
+    action_type: str
     zone: str
-    light: Optional[str]
     scene: Optional[str]
+    light: Optional[str]
     temperature: Optional[int]
     brightness: Optional[Union[int,float]]
     brightness_relative: Optional[bool]
     brightness_up_down: Optional[str]
     color: Optional[str]
-
-
     split: Literal["train", "test"]
 
 
@@ -239,7 +226,7 @@ with open(DATA_DIR/"synth_commands_3k.jsonl", "a", encoding="utf-8") as file:
                 id=id,
                 full_command=res.full_command,
                 wakeword_phrase=res.wakeword_phrase,
-                action=res.action,
+                action_type=res.action,
                 zone=res.zone,
                 light=res.light,
                 scene=res.scene,
@@ -256,7 +243,7 @@ with open(DATA_DIR/"synth_commands_3k.jsonl", "a", encoding="utf-8") as file:
                 id=id,
                 full_command=res.full_command,
                 wakeword_phrase=res.wakeword_phrase,
-                action=res.action,
+                action_type=res.action,
                 zone=res.zone,
                 light=res.light,
                 scene=res.scene,
