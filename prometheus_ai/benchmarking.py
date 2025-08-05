@@ -161,7 +161,7 @@ async def run_agent_and_score(
 @logfire.instrument('benchmarking', extract_args=True, record_return=True)
 async def benchmark(
     model:str,
-    base_url: str,
+    provider: str,
     max_concurrent_requests: int = 5,
     num_scenarios: int = None, 
     exclude_actions: Optional[List[str]] = None,
@@ -181,7 +181,7 @@ async def benchmark(
     agent = Agent(benchmarking=True,
                   max_retries=max_retries,
                   model=model,
-                  base_url=base_url)
+                  provider=provider)
     
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
@@ -214,16 +214,6 @@ def main():
 
     args = parser.parse_args()
 
-    PROVIDERS = {
-        "local": "http://localhost:8000/v1",
-        "openrouter": "https://openrouter.ai/api/v1",
-        "anthropic": "https://api.anthropic.com/v1/",
-        "deepinfra": "https://api.deepinfra.com/v1/openai",
-        "openai": "" #A default value is used if not specified and using OAI sdk - which I am
-    }
-
-    base_url = PROVIDERS.get(args.provider)
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     LOG_PATH = Path(__file__).parent / "benchmarking/logs/"
     LOG_PATH.mkdir(parents=True, exist_ok=True)
@@ -234,7 +224,6 @@ def main():
     print(f"   Starting benchmark with configuration:")
     print(f"   Model: {args.model_name}")
     print(f"   Provider: {args.provider}")
-    print(f"   Base URL: {base_url}")
     print(f"   Samples: {args.samples}")
     print(f"   Concurrent requests: {args.concurrent}")
     print(f"   Seed: {args.seed}")
@@ -245,13 +234,12 @@ def main():
         logfire.info(f"Start at: {datetime.now().isoformat()}")
         logfire.info(f"Provider: {args.provider}")
         logfire.info(f"Model: {args.model_name}")
-        logfire.info(f"Base URL: {base_url}")
         logfire.info(f"Samples: {args.samples}")
         logfire.info(f"Concurrent requests: {args.concurrent}")
         logfire.info(f"Seed: {args.seed}")
         logfire.info(f"Skipping actions: {args.skip_actions}")
 
-        print(f"   Running benchmark with rate limiting (max {args.concurrent} concurrent requests)...")
+        print(f"   Running benchmark with rate limiting (max {args.concurrent} concurrent requests)...\n")
         
         results = asyncio.run(benchmark(
             num_scenarios=args.samples,
@@ -259,7 +247,7 @@ def main():
             exclude_actions=args.skip_actions,
             model=args.model_name,
             seed=args.seed,
-            base_url=base_url,
+            provider=args.provider,
         ))
 
         final_score_list_no_errors = [t.score for t in results if t.score is not None]
@@ -278,11 +266,11 @@ def main():
                 "model": args.model_name,
                 "excluded_actions": args.skip_actions,
                 "concurrent_requests": args.concurrent,
-                "base_url": base_url,
+                "provider": args.provider,
                 "timestamp": timestamp,
                 "end_time": datetime.now().isoformat()
             }
-            if "localhost" in base_url:
+            if args.provider == "local":
                 metadata["locally_served"] = True
 
             f.write(json.dumps({"metadata": metadata}) + "\n")

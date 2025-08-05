@@ -192,7 +192,6 @@ class turn_on(BaseModel):
             raise ValueError("Zone must be specified to turn on the lights.") 
 
         if command.light:
-            # Turn on a specific light in the specified zone
             deps.bridge.zones[command.zone].devices[command.light].turn_on()
         elif command.scene == "all":
             deps.bridge.turn_on_all_lights()
@@ -212,7 +211,6 @@ class turn_off(BaseModel):
         if not command.zone:
             raise ValueError("Zone must be specified to turn off the lights.")
         if command.light:
-            # Turn off a specific light in the specified zone
             deps.bridge.zones[command.zone].devices[command.light].turn_off()
         elif command.scene == "all":
             deps.bridge.turn_off_all_lights()
@@ -234,8 +232,7 @@ class set_scene(BaseModel):
             raise ValueError("Zone must be specified to set the scene.")
         if not command.scene:
             raise ValueError("Scene must be specified to set the scene.")
-        
-        # Set the scene in the specified zone
+
         deps.bridge.zones[command.zone].set_scene(command.scene)
         
         state.bridge_state = deps.bridge.get_current_state()
@@ -253,8 +250,7 @@ class set_brightness(BaseModel):
             raise ValueError("Zone must be specified to set the brightness.")
         if not command.brightness:
             raise ValueError("Brightness must be specified to set the brightness.")
-        
-        # Set the brightness in the specified zone or light
+
         if command.light:
             current_brightness = state.bridge_state['zones'][command.zone]['devices'][command.light]["brightness"]
             if isinstance(command.brightness.brightness, float):
@@ -307,8 +303,7 @@ class set_temperature(BaseModel):
             raise ValueError("Zone must be specified to set the temperature.")
         if not command.temperature:
             raise ValueError("Temperature must be specified to set the temperature.")
-        
-        # Set the temperature in the specified zone or light
+
         if command.light:
             deps.bridge.zones[command.zone].devices[command.light].change_temp(command.temperature)
         else:
@@ -328,7 +323,6 @@ class Dim(BaseModel):
             raise ValueError("Zone must be specified to dim the lights.")
         
         if command.light:
-            # Dim a specific light in the specified zone
             current_brightness = state.bridge_state['zones'][command.zone]['devices'][command.light]["brightness"]
             new_brightness = current_brightness * 0.5
             deps.bridge.zones[command.zone].devices[command.light].change_brightness(new_brightness)
@@ -355,16 +349,56 @@ class Agent:
 
     @logfire.instrument('agent_initialisation', extract_args=True, record_return=True)
     def __init__(self, 
-                 api_key: str = os.getenv("OPENROUTER_API_KEY"),
-                 base_url: str = os.getenv("OPENROUTER_BASE_URL"),
+                 provider: str = "openrouter",
+                 api_key: str = None,
+                 base_url: str = None,
                  max_retries: int = 3,
-                #  model=TEST_MODEL_LARGE_FREE,
                  model = TEST_MODEL_LARGE,
                  benchmarking: bool = False) -> None:
 
-        if "localhost" in base_url:
-            api_key = "EMPTY"
-            base_url = "http://localhost:8000/v1"
+        PROVIDERS = {
+            "local": {
+                "base_url": "http://localhost:8000/v1",
+                "api_key_env": None,
+                "default_api_key": "EMPTY"
+            },
+            "openrouter": {
+                "base_url": "https://openrouter.ai/api/v1",
+                "api_key_env": "OPENROUTER_API_KEY",
+                "default_api_key": None
+            },
+            "anthropic": {
+                "base_url": "https://api.anthropic.com/v1/",
+                "api_key_env": "ANTHROPIC_API_KEY",
+                "default_api_key": None
+            },
+            "deepinfra": {
+                "base_url": "https://api.deepinfra.com/v1/openai",
+                "api_key_env": "DEEPINFRA_API_KEY",
+                "default_api_key": None
+            },
+            "openai": {
+                "base_url": "",
+                "api_key_env": "OPENAI_API_KEY",
+                "default_api_key": None
+            }
+        }
+
+        if provider not in PROVIDERS:
+            raise ValueError(f"Unsupported provider: {provider}. Supported providers: {list(PROVIDERS.keys())}")
+        
+        provider_config = PROVIDERS[provider]
+        
+        if base_url is None:
+            base_url = provider_config["base_url"]
+        
+        if api_key is None:
+            if provider_config["api_key_env"]:
+                api_key = os.getenv(provider_config["api_key_env"])
+                if api_key is None:
+                    raise ValueError(f"API key not found in environment variable {provider_config['api_key_env']} for provider {provider}")
+            else:
+                api_key = provider_config["default_api_key"]
         
         if benchmarking:
             self.bridge = None
@@ -376,9 +410,7 @@ class Agent:
         try:
             openai_client = AsyncOpenAI(
                 api_key=api_key,
-                base_url=base_url,
-                timeout=100.0,  
-                max_retries=0)
+                base_url=base_url)
         except Exception as e:
             logfire.error(f"Error initializing OpenAI client: {e}")
             raise e
@@ -402,20 +434,6 @@ class Agent:
     async def action(self, user_prompt: str) -> Union[None, AGENTACTIONS]:
         try:
             logfire.info(f"User prompt: {user_prompt}")
-            
-            # action = await asyncio.wait_for(
-            #     self.deps.client.chat.completions.create(
-            #         model=self.deps.model,
-            #         response_model=AGENTACTIONS,
-            #         messages=[
-            #             {"role":"system", "content": self.SYS_PROMPT},
-            #             {"role": "user", "content": user_prompt}
-            #         ],
-            #         max_retries=self.deps.max_retries,
-            #         temperature=0.1,
-            #         max_tokens=4096),
-            #     timeout=100.0
-            # )
             action = await self.deps.client.chat.completions.create(
                     model=self.deps.model,
                     response_model=AGENTACTIONS,
@@ -424,8 +442,7 @@ class Agent:
                         {"role": "user", "content": user_prompt}
                     ],
                     max_retries=self.deps.max_retries,
-                    temperature=0.1,
-                    # max_tokens=4096
+                    temperature=0.1
                     )
             if self.deps.benchmarking:
                 return action
@@ -450,7 +467,6 @@ class Agent:
     
     def _build_sys_prompt(self, deps: DependenciesManager, state:StateManager) -> str:
         if deps.benchmarking:
-            # Use mock data for benchmarking to avoid bridge dependency
             zones = "office, lounge, lounge floor lights, bedroom, all, tv"
             zone_devices = {
                 "office": ["desk", "ceiling", "floor"],
@@ -493,8 +509,7 @@ if __name__ == "__main__":
     user_query = ''
     logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
     with logfire.span("Agent Run"):
-        base_url = "http://localhost:8000/v1"
-        agent = Agent(base_url=base_url)
+        agent = Agent(provider="local")
         while True and user_query.lower() != "exit":
             try:
                 user_query = input("Enter your command: ")
