@@ -305,7 +305,7 @@ class Agent:
         return textwrap.dedent(SYS_PROMPT_COMMAND)
         
 
-if __name__ == "__main__":
+async def main():
     user_query = ''
     logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
     with logfire.span("Agent Run"):
@@ -313,7 +313,12 @@ if __name__ == "__main__":
         while True and user_query.lower() != "exit":
             try:
                 user_query = input("Enter your command: ")
-                agent.action(user_query)
+                if user_query.lower() == "exit":
+                    break
+                _ = await agent.action(user_query)
             except KeyboardInterrupt:
                 print("\nExiting...")
                 break
+
+if __name__ == "__main__":
+    asyncio.run(main())
