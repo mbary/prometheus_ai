@@ -223,16 +223,14 @@ def main():
     }
 
     base_url = PROVIDERS.get(args.provider)
-    
-    # Setup
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     LOG_PATH = Path(__file__).parent / "benchmarking/logs/"
     LOG_PATH.mkdir(parents=True, exist_ok=True)
     
     logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
     logfire.instrument_openai()
-    
-    # Print configuration
+
     print(f"   Starting benchmark with configuration:")
     print(f"   Model: {args.model_name}")
     print(f"   Provider: {args.provider}")
@@ -254,8 +252,6 @@ def main():
         logfire.info(f"Skipping actions: {args.skip_actions}")
 
         print(f"   Running benchmark with rate limiting (max {args.concurrent} concurrent requests)...")
-        print(f"   Excluding actions: {args.skip_actions}")
-        print(f"   Using seed: {args.seed} for reproducible results\n\n")
         
         results = asyncio.run(benchmark(
             num_scenarios=args.samples,
@@ -265,25 +261,7 @@ def main():
             seed=args.seed,
             base_url=base_url,
         ))
-        
-        # Save results to file
-        with open(LOG_PATH / f"benchmark_results_{args.model_name.replace('/', '_').replace("-","_")}_{len(results)}_{timestamp}.jsonl", 'a') as f:
-            metadata = {
-                "samples": len(results),
-                "seed": args.seed,
-                "model": args.model_name,
-                "excluded_actions": args.skip_actions,
-                "concurrent_requests": args.concurrent,
-                "base_url": base_url
-            }
-            if "localhost" in base_url:
-                metadata["locally_served"] = True
-            
-            f.write(json.dumps({"metadata": metadata}) + "\n")
-            for trajectory in results:
-                f.write(trajectory.model_dump_json() + "\n")
-        
-        # Calculate and display results
+
         final_score_list_no_errors = [t.score for t in results if t.score is not None]
         final_score_list_w_errors = [t.score if t.score else 0 for t in results]
         
@@ -292,17 +270,49 @@ def main():
         
         successful_trajectories = [t for t in results if not t.error]
         error_trajectories = [t for t in results if t.error]
+
+        with open(LOG_PATH / f"benchmark_results_{args.model_name.replace('/', '_').replace("-","_")}_{len(results)}_{timestamp}.jsonl", 'a') as f:
+            metadata = {
+                "samples": len(results),
+                "seed": args.seed,
+                "model": args.model_name,
+                "excluded_actions": args.skip_actions,
+                "concurrent_requests": args.concurrent,
+                "base_url": base_url,
+                "timestamp": timestamp,
+                "end_time": datetime.now().isoformat()
+            }
+            if "localhost" in base_url:
+                metadata["locally_served"] = True
+
+            f.write(json.dumps({"metadata": metadata}) + "\n")
+
+            benchmark_results = {
+                "benchmark_results": {
+                    "total_scenarios": len(results),
+                    "successful_scenarios": len(successful_trajectories),
+                    "failed_scenarios": len(error_trajectories),
+                    "success_rate": len(successful_trajectories) / len(results) if results else 0,
+                    "score_no_errors": final_score_no_errors,
+                    "score_with_errors": final_score_with_errors,
+                    "error_rate": len(error_trajectories) / len(results) if results else 0
+                }
+            }
+            f.write(json.dumps(benchmark_results) + "\n")
+
+            for trajectory in results:
+                f.write(trajectory.model_dump_json() + "\n")
         
         print(f"\nBenchmark Results:")
         print(f"Total scenarios: {len(results)}")
         print(f"Successfully completed: {len(successful_trajectories)}/{len(results)} scenarios")
-        print(f"Failed: {len(error_trajectories)}/{len(results)} scenarios")
+        print(f"Error rate: {len(error_trajectories)}/{len(results)} scenarios")
         print(f"Benchmark score (no errors): {final_score_no_errors:.3f}")
         print(f"Benchmark score (with errors): {final_score_with_errors:.3f}")
         
         logfire.info("Benchmark Results:")
         logfire.info(f"Successfully completed: {len(successful_trajectories)}/{len(results)} scenarios.")
-        logfire.info(f"Failed: {len(error_trajectories)}/{len(results)} scenarios.")
+        logfire.info(f"Error rate: {len(error_trajectories)}/{len(results)} scenarios.")
         logfire.info(f"Completed (no errors) with result: {final_score_no_errors}")
         logfire.info(f"Completed (with errors) with result: {final_score_with_errors}")
 
