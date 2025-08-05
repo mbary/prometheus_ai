@@ -20,6 +20,7 @@ class turn_on(BaseModel):
     action_type: Literal["turn_on"] = "turn_on"
     command: Command = Field(description="Details of the action to be performed")
 
+    @logfire.instrument('turn_on', extract_args=True, record_return=True)
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to turn on the lights.") 
