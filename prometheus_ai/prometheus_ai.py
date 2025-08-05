@@ -151,10 +151,9 @@ class Brightness(BaseModel):
                                                    -40,-0.2,-100],
                                          ge=-100, le=100,
                                          )
-    relative: bool = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+    relative: Optional[bool] = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
 
-    up_down: Literal['up','down'] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down")
-    
+    up_down: Optional[Literal['up','down']] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down")
 
 class Command(BaseModel):
     # thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
@@ -438,8 +437,8 @@ class Agent:
             return None
         except Exception as e:
             logfire.error(f"Error executing action: {e}")
-            return None
-    
+            return {"error": str(e)}
+
     def format_sections(self, data: dict) -> str:
         """Return a bullet-formatted string from a dict[str, list[str]]."""
         lines = []

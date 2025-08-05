@@ -51,7 +51,7 @@ class Trajectory(BaseModel):
     """Trajectory of a scenario."""
     scenario: Scenario
     action: Any = None
-    score: int = None
+    score: Union[int,None] = None
     error: Optional[str] = None
 
 @logfire.instrument('load_scenarios', extract_args=True, record_return=True)
@@ -75,7 +75,9 @@ def load_scenarios(
     Returns:
         List of Scenario objects
     """
-    dataset = load_dataset(dataset_name, split=split)
+    dataset = load_dataset(dataset_name, split=split
+                        #    split='train'
+                        )
     all_items = list(dataset)
     
     if seed is not None:
@@ -135,13 +137,24 @@ async def run_agent_and_score(
     
     async with semaphore:
         action = await agent.action(scenario.full_command)
-        score = score_action(action, scenario)
-        trajectory = Trajectory(
-            scenario=scenario,
-            action=action,
-            score=score
-        )
-        logfire.info(f"Score: {score}")
+        if isinstance(action, dict) and 'error' in action:
+            logfire.error(f"Error in action: {action['error']}\nScenario: {scenario.full_command}")
+            trajectory = Trajectory(
+                scenario=scenario,
+                action=None,
+                score=None,
+                error=action['error']
+            )
+            return trajectory
+        else:
+            score = score_action(action, scenario)
+            trajectory = Trajectory(
+                scenario=scenario,
+                action=action,
+                score=score
+            )
+            logfire.info(f"Scenario ID: {scenario.id}\nFull command: {scenario.full_command}\n Action: {action}\n Score: {score}")
+
         return trajectory
 
 @logfire.instrument('benchmarking', extract_args=True, record_return=True)
@@ -163,7 +176,7 @@ async def benchmark(
     )
     
     print(f"Loaded {len(scenarios)} scenarios after filtering (seed: {seed})")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
     agent = Agent(benchmarking=True,
                   max_retries=max_retries,
                   model=model,
@@ -175,17 +188,16 @@ async def benchmark(
                                                       semaphore=semaphore, 
                                                       agent=agent) for scenario in scenarios], desc="Benchmarking yo")
     
-    with open(LOG_PATH / f"benchmark_results_{model}_{len(scenarios)}_{timestamp}.jsonl", 'a') as f:
-        for trajectory in trajectories:
-            f.write(trajectory.model_dump_json() + "\n")
+    
 
-    results = [t.score for t in trajectories if t.score is not None]
+    
 
-    return sum(results)/len(results) if results else 0
+    return trajectories
 
 if __name__ == '__main__':
     import asyncio
     from rich import print
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     LOG_PATH = Path(__file__).parent/"benchmarking/logs/"
     LOG_PATH.mkdir(parents=True, exist_ok=True)
 
@@ -211,16 +223,50 @@ if __name__ == '__main__':
             "set_color",
             "dim"
         ]
-        
+        ## TODO mve the saving of logs to file outsite the benchmark
+        ## include it here and appent at the beginning a metadata class
+        ## where all the shit is included like num of samples/seed/model/excluded etc
         print(f"Excluding actions: {unimplemented_actions}")
         print(f"Using seed: {benchmark_seed} for reproducible results")
-        result = asyncio.run(benchmark(
-            num_scenarios=10,
+        results = asyncio.run(benchmark(
+            num_scenarios=50,
             max_concurrent_requests=max_concurrent_requests,
             exclude_actions=unimplemented_actions,
             model=model,
             seed=benchmark_seed,
             base_url=base_url,
         ))
-        print(f"Benchmark result: {result}")
-        logfire.info(f"Benchmark completed with result: {result}")
+
+        with open(LOG_PATH / f"benchmark_results_{model}_{len(results)}_{timestamp}.jsonl", 'a') as f:
+            metadata = {
+                "num_samples": len(results),
+                "seed": benchmark_seed,
+                "model": model,
+                "excluded_actions": unimplemented_actions
+            }
+            if "localhost" in base_url:
+                metadata["locally_served"] = True
+
+            f.write(json.dumps({"metadata": metadata}) + "\n")
+            for trajectory in results:
+                f.write(trajectory.model_dump_json() + "\n")
+
+        final_score_list_no_errors = [t.score for t in results if t.score is not None]
+        final_score_list_w_errors = [t.score if t.score else 0 for t in results]
+        
+        final_score_no_errors = sum(final_score_list_no_errors) / len(final_score_list_no_errors) if final_score_list_no_errors else 0
+        final_score_with_errors = sum(final_score_list_w_errors) / len(final_score_list_w_errors) if final_score_list_w_errors else 0
+
+        successful_trajectories = [t for t in results if not t.error]
+        error_trajectories = [t for t in results if t.error]
+
+        print(f"Total scenarios: {len(results)}")
+        print(f"Benchmarking succesfully completed for {len(successful_trajectories)}/ {len(results)} scenarios.")
+        print(f"Benchmarking failed for {len(error_trajectories)}/ {len(results)} scenarios.")
+        print(f"Benchmark result (no errors): {final_score_no_errors}")
+        print(f"Benchmark result (with errors): {final_score_with_errors}")
+
+        logfire.info(f"Benchmarking succesfully completed for {len(successful_trajectories)}/ {len(results)} scenarios.")
+        logfire.info(f"Benchmarking failed for {len(error_trajectories)}/ {len(results)} scenarios.")
+        logfire.info(f"Benchmark completed (no errors) with result: {final_score_no_errors}")
+        logfire.info(f"Benchmark completed (with errors) with result: {final_score_with_errors}")
