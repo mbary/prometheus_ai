@@ -1,25 +1,21 @@
 from __future__ import annotations
 
-
-import json
 import os
 import textwrap
 import asyncio
-from pathlib import Path
-from typing import Any, List, Optional, Literal, Union, Dict
-from openai import AsyncOpenAI, OpenAI
-from pydantic import Field, create_model, ConfigDict, BaseModel
+from typing import Union
+
+from openai import AsyncOpenAI
 from rich import print
 import instructor
 import logfire
-
-
-from Prometheus import Bridgette
-
-from utils.project_types import StateManager, DependenciesManager
-from utils.agent_tools import turn_off, turn_on, set_scene, set_brightness, set_temperature
 from dotenv import load_dotenv
 load_dotenv()
+
+from Prometheus import Bridgette
+from utils.project_types import StateManager, DependenciesManager
+from utils.agent_tools import turn_off, turn_on, set_scene, set_brightness, set_temperature
+
 """
 This file is the agent responsible for managing and controlling the Philips Hue ecosystem.
 (The base Bridgette class will likely require refactoring as it's quite old now)
@@ -119,20 +115,6 @@ Considerations:
 - Should I implement a step loop? I don't think so, as the agent will operate on commands given to it it'll
   The model will run continuously and will execute commands as they come in
 """
-
-###################################################################
-################### TOOL AND OUTPUT DEFINITIONS ###################
-###################################################################
-
-#############################################################
-######### STATE MANAGER AND DEPENDENCIES DEFINITION #########
-#############################################################
-
-
-
-
-
-        
 AGENTACTIONS = Union[turn_on, 
                      turn_off, 
                      set_scene, 
@@ -140,10 +122,6 @@ AGENTACTIONS = Union[turn_on,
                      set_temperature, 
                     #  Dim
                      ]
-
-TEST_MODEL_LARGE_FREE = "qwen/qwen3-235b-a22b:free"
-TEST_MODEL_LARGE = "qwen/qwen3-235b-a22b"
-
 
 class Agent:
 
@@ -212,10 +190,12 @@ class Agent:
         except Exception as e:
             logfire.error(f"Error initializing OpenAI client: {e}")
             raise e
+        
         if provider == 'local':
             mode = instructor.Mode.TOOLS
         else:
             mode = instructor.Mode.JSON
+            
         self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(openai_client, 
                                                                                         mode=mode
                                                                                            ),

@@ -164,17 +164,11 @@ async def benchmark(
                   max_retries=max_retries,
                   model=model,
                   provider=provider)
-    
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
     trajectories = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
                                                       semaphore=semaphore, 
                                                       agent=agent) for scenario in scenarios], desc="Benchmarking yo")
-    
-    
-
-    
-
     return trajectories
 
 def main():
