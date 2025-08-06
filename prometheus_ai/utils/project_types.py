@@ -26,17 +26,20 @@ class DependenciesManager(CustomBaseModel):
 
 
 class Brightness(BaseModel):
-    brightness: Union[int,float] = Field(description="""The user's desired brightness level.
+    brightness: Union[int,float, None] = Field(description="""The user's desired brightness level.
                                          Can be expressed in absolute values (int) or percentages (float).
                                          If a percentage is given, the absolute value will be based on the current light state.
                                          If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3. If the user says 'increase brightness by 10%' return 0.1. If the user says 'decrease brightness by 40%' return -0.4.""",
-                                         examples=[30,0.5, 0.75, 100, 50, 0.25,
-                                                   -40,-0.2,-100],
-                                         ge=-100, le=100,
-                                         )
-    relative: bool = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", examples=[True, False])
+                                         examples=[30,0.5, 0.75, 100, 50, 0.25],
+                                         ge=0, le=100,
+                                         default=None)
+    
+    relative: Union[bool, None] = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", 
+                                        examples=[True, False],
+                                        default=None)
 
-    up_down: Literal['up','down'] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down")
+    up_down: Union[Literal['up','down'], None] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down",
+                                                       default=None,)
 
 class Command(BaseModel):
     # thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
@@ -44,32 +47,32 @@ class Command(BaseModel):
     zone: Literal["office", "lounge", "lounge floor lights", "bedroom", "all", "tv"] = Field(
         description="The name of the zone where the command will be executed.")
     
-    light: Optional[str] = Field(
+    light: Union[str, None] = Field(
         description="The name of the light where the command will be executed")
     
-    scene: Optional[Literal['natural light', 'relax', 'bloodbath', 'rest', 'disturbia', 
+    scene: Union[Literal['natural light', 'relax', 'bloodbath', 'rest', 'disturbia', 
                             'relax', 'energize ', 'concentrate', 'read', 'warm embrace', 
                             'galaxy', 'phthalocyanine green love', 'starlight', 'tri colour',
-                              'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho']] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.")
-    brightness: Optional[Brightness]
-    temperature: Optional[int] = Field(description="The warmth of the light",
+                              'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho'], None] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.",
+                                                                                                                           default=None,)
+    temperature: Union[int, None] = Field(description="The user's desired light temperature. May be expressed in Kelvin units.",
                                        ge=153, le=500,
-                                       examples=[153, 200, 300, 400, 500]) 
+                                       examples=[153, 200, 300, 400, 500],
+                                       default=None,) 
+    brightness: Union[Brightness, None] = None
 
 
 class Scenario(BaseModel):
-    id:int
+    """A scenario for the light controlling system."""
+    id: int
     full_command: str
     wakeword_phrase: str
     action_type: str
     zone: str
-    scene: Optional[str]
-    light: Optional[str]
-    temperature: Optional[int]
-    brightness: Optional[Union[float,int]]
-    brightness_relative: Optional[bool]
-    brightness_up_down: Optional[str]
-    color: Optional[str]
+    scene: Union[str, None]
+    light: Union[str, None]
+    temperature: Union[int, None]
+    brightness: Union[Brightness, None]
     split: Literal["train", "test"]
 
 class Trajectory(BaseModel):
@@ -78,7 +81,7 @@ class Trajectory(BaseModel):
     action: Any = None
     error: Optional[str] = None
     total_score: Union[int,None] = None
-    success_rate: Optional[Union[int,None]] = None
+    success_rate: Optional[Union[float,None]] = None
     correct_tool: Optional[Union[int,None]] = None
     correct_zone: Optional[Union[int,None]] = None
     correct_scene: Optional[Union[int,None]] = None
