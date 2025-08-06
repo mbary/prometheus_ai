@@ -268,23 +268,36 @@ class Agent:
 
 
         SYS_PROMPT_COMMAND = f"""You are an assistant parsing a command to be executed by a light controlling system.
-        You have access to the following tools:
+        #You have access to the following tools:
         - turn_on - Turns on the selected lights or zone
         - turn_off - Turns off the selected lights or zone
         - set_scene - Sets the scene in the selected zone
         - set_brightness - Sets the brightness of the selected lights or zone
         - set_temperature - Sets the temperature of the selected lights or zone
 
-        Each tool requires:
+        #Each tool requires:
         - thinking: Your reasoning for selecting this action
         - action_type: The exact name of the selected tool
         - command: A structured command containing the details of the action to be performed.
 
-        The available zones are: 
-        {zones}
-        The available devices in each zone are: {zone_devices}
+        #Instructions:
+        * Respond in the following format:
+        <think>
+        [your thoughts here]
+        </think>
+        <tool>
+        * When you have found the answer, respond in the following format:
+        <thinkin>
+        [your thoughts here]
+        </think>
+        <answer>
+        [final answer here]
+        </answer>
+        * Keep your responses concise and focused on the action to be performed.
 
-        Keep the replies short and concise, focusing on the action to be performed.
+        #The available zones are: 
+        {zones}
+        #The available devices in each zone are: {zone_devices}
         """
         return textwrap.dedent(SYS_PROMPT_COMMAND)
         
