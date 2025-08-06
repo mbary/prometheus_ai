@@ -105,13 +105,9 @@ def load_scenarios(
     logfire.info(f"Loaded {len(scenarios)} scenarios from {dataset_name} ({split} split) with limit={limit}, seed={seed}")
     return scenarios
 
-def _score_action(action,scenario):
-    """this will run all the scoring functions on the action and scenario"""
-    pass
-
 
 @logfire.instrument('score_action', extract_args=True, record_return=True)
-def tool_usage(action, scenario):
+def tool_usage(action, scenario) -> int:
     """
     Scores the action based on the command.
     """
@@ -120,7 +116,110 @@ def tool_usage(action, scenario):
         score = 1
     return score
 
+@logfire.instrument('correct_zone', extract_args=True, record_return=True)
+def correct_zone(action, scenario) -> int:
+    """
+    Checks if the action's zone matches the scenario's zone.
+    """
+    score = 0
+    if action and action.zone == scenario.zone:
+        score = 1
+    return score
 
+@logfire.instrument('correct_scene', extract_args=True, record_return=True)
+def correct_scene(action, scenario) -> int:
+    """
+    Checks if the action's scene matches the scenario's scene.
+    """
+    score = 0
+    if action and action.scene == scenario.scene:
+        score = 1
+    return score
+
+@logfire.instrument('correct_light', extract_args=True, record_return=True)
+def correct_light(action, scenario) -> int:
+    """
+    Checks if the action's light matches the scenario's light.
+    """
+    score = 0
+    if action and action.light == scenario.light:
+        score = 1
+    return score
+
+@logfire.instrument('correct_temperature', extract_args=True, record_return=True)
+def correct_temperature(action, scenario) -> int:
+    """
+    Checks if the action's temperature matches the scenario's temperature.
+    """
+    score = 0
+    if action and action.temperature == scenario.temperature:
+        score = 1
+    return score
+
+@logfire.instrument('correct_brightness', extract_args=True, record_return=True)
+def correct_brightness(action, scenario) -> int:
+    """
+    Checks if the action's brightness matches the scenario's brightness.
+    """
+    score = 0
+    if action and action.brightness == scenario.brightness:
+        score = 1
+    return score
+
+@logfire.instrument('correct_brightness_relative', extract_args=True, record_return=True)
+def correct_brightness_relative(action, scenario) -> int:
+    """
+    Checks if the action's brightness relative matches the scenario's brightness relative.
+    """
+    score = 0
+    if action and action.brightness_relative == scenario.brightness_relative:
+        score = 1
+    return score
+
+@logfire.instrument('correct_brightness_up_down', extract_args=True, record_return=True)
+def correct_brightness_up_down(action, scenario) -> int:
+    """
+    Checks if the action's brightness up/down matches the scenario's brightness up/down.
+    """
+    score = 0
+    if action and action.brightness_up_down == scenario.brightness_up_down:
+        score = 1
+    return score
+
+@logfire.instrument('score_action', extract_args=True, record_return=True)
+def score_action(action,scenario) -> Dict[str, float]:
+    """this will run all the scoring functions on the action and scenario"""
+    correct_tool_score = tool_usage(action, scenario)
+    correct_zone_score = correct_zone(action, scenario)
+    correct_scene_score = correct_scene(action, scenario)
+    correct_light_score = correct_light(action, scenario)
+    correct_temperature_score = correct_temperature(action, scenario)
+    correct_brightness_score = correct_brightness(action, scenario)
+    correct_brightness_relative_score = correct_brightness_relative(action, scenario)
+    correct_brightness_up_down_score = correct_brightness_up_down(action, scenario)
+
+    total_score = (
+        correct_tool_score +
+        correct_zone_score +
+        correct_scene_score +
+        correct_light_score +
+        correct_temperature_score +
+        correct_brightness_score +
+        correct_brightness_relative_score +
+        correct_brightness_up_down_score
+    )
+    score_dict = {
+        "total_score": total_score,
+        "correct_tool": correct_tool_score,
+        "correct_zone": correct_zone_score,
+        "correct_scene": correct_scene_score,
+        "correct_light": correct_light_score,
+        "correct_temperature": correct_temperature_score,
+        "correct_brightness": correct_brightness_score,
+        "correct_brightness_relative": correct_brightness_relative_score,
+        "correct_brightness_up_down": correct_brightness_up_down_score,
+    }
+    return score_dict
 
 
 @logfire.instrument('run_agent_and_score', extract_args=True, record_return=True)
@@ -142,13 +241,22 @@ async def run_agent_and_score(
             )
             return trajectory
         else:
-            score = tool_usage(action, scenario)
+            score = score_action(action, scenario)
             trajectory = Trajectory(
                 scenario=scenario,
                 action=action,
-                score=score
+                total_score=score['total_score'],
+                success_rate=score['total_score'] / sum([score[key] for key in score.keys() if key != 'total_score' and score[key]] ),
+                correct_tool=score['correct_tool'],
+                correct_zone=score['correct_zone'],
+                correct_scene=score['correct_scene'],
+                correct_light=score['correct_light'],
+                correct_temperature=score['correct_temperature'],
+                correct_brightness=score['correct_brightness'],
+                correct_brightness_relative=score['correct_brightness_relative'],
+                correct_brightness_up_down=score['correct_brightness_up_down']
             )
-            logfire.info(f"Scenario ID: {scenario.id}\nFull command: {scenario.full_command}\n Action: {action}\n Score: {score}")
+            logfire.info(f"Scenario ID: {scenario.id}\nFull command: {scenario.full_command}\n Action: {action}\n Scores: {score}")
 
         return trajectory
 

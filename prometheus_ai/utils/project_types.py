@@ -76,5 +76,14 @@ class Trajectory(BaseModel):
     """Trajectory of a scenario."""
     scenario: Scenario
     action: Any = None
-    score: Union[int,None] = None
     error: Optional[str] = None
+    total_score: Union[int,None] = None
+    success_rate: Optional[Union[int,None]] = None
+    correct_tool: Optional[Union[int,None]] = None
+    correct_zone: Optional[Union[int,None]] = None
+    correct_scene: Optional[Union[int,None]] = None
+    correct_light: Optional[Union[int,None]] = None
+    correct_temperature: Optional[Union[int,None]] = None
+    correct_brightness: Optional[Union[int,None]] = None
+    correct_brightness_relative: Optional[Union[int,None]] = None
+    correct_brightness_up_down: Optional[Union[int,None]] = None
