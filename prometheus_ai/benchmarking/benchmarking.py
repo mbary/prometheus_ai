@@ -194,7 +194,7 @@ async def benchmark(
                                                       agent=agent) for scenario in scenarios], desc=f"Benchmarking {model} yo")
     return trajectories
 
-def  display_summary_table(summary_dict: Dict):
+def display_summary_table(summary_dict: Dict):
     console = Console()
     results = summary_dict["benchmark_results"]
     table = Table(title="Benchmark Summary")
