@@ -2,15 +2,13 @@ import argparse
 import os
 import sys
 import asyncio
-import random
 import json
 import yaml
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 
 import logfire
-from datasets import load_dataset
 from tqdm.asyncio import tqdm
 from rich import print
 from rich.table import Table
@@ -105,7 +103,7 @@ async def multi_benchmark(
                     seed=global_config['seed'],
                     mode=model_config.get('mode'),
                 )
-                all_results[f"{model}:{provider}"] = results
+                all_results[(model, provider)] = results
 
                 successful_trajectories = [t for t in results if not t.error]
                 error_trajectories = [t for t in results if t.error]
@@ -119,7 +117,7 @@ async def multi_benchmark(
             except Exception as e:
                 logfire.error(f"Error benchmarking {model}: {str(e)}")
                 console.print(f"[red]✗ Failed {model}: {str(e)}[/red]")
-                all_results[f"{model}:{provider}"] = []
+                all_results[(model, provider)] = []
     
     return all_results
 
@@ -147,11 +145,9 @@ def display_summary_table(all_summaries: List[Dict[str, Any]]):
             f"{summary['score_no_errors']:.3f}",
             f"{summary['score_with_errors']:.3f}"
         )
-    
     console.print(table)
 
 def main():
-    """Main function for multi-model benchmarking using configuration file."""
 
     parser = argparse.ArgumentParser(description="Run benchmarking for Prometheus AI agent")
     parser.add_argument('--config-file', type=str, required=True, help="Path to the yaml configuration file")
@@ -200,11 +196,10 @@ def main():
         all_results = asyncio.run(multi_benchmark(config))
 
         all_summaries = []
-        all_trajectories = []
         
         for model_provider, results in all_results.items():
             if results: 
-                model, provider = model_provider.split(':', 1)
+                model, provider = model_provider
 
                 final_score_list_no_errors = [t.score for t in results if t.score is not None]
                 final_score_list_w_errors = [t.score if t.score else 0 for t in results]
@@ -228,53 +223,57 @@ def main():
                 }
                 all_summaries.append(summary)
 
-                for trajectory in results:
-                    trajectory_dict = trajectory.model_dump()
-                    trajectory_dict["model"] = model
-                    trajectory_dict["provider"] = provider
-                    all_trajectories.append(trajectory_dict)
-
         total_scenarios = sum(len(results) for results in all_results.values() if results)
-        multi_benchmark_filename = f"multi_benchmark_results_{len(models_config)}_models_{total_scenarios}_{timestamp}.jsonl"
-        
-        with open(LOG_PATH / multi_benchmark_filename, 'w') as f:
-            metadata = {
-                "config_file": args.config_file,
-                "samples": global_config['samples'],
-                "seed": global_config['seed'],
-                "models": [{"model": m['model'], "provider": m['provider'], 
-                           "max_concurrent_requests": m['max_concurrent_requests'],
-                           "max_retries": m['max_retries']} for m in models_config],
-                "excluded_actions": global_config['skip_actions'],
-                "timestamp": timestamp,
-                "end_time": datetime.now().isoformat(),
-                "total_models": len(models_config),
-                "total_scenarios": total_scenarios
-            }
-            f.write(json.dumps({"metadata": metadata}) + "\n")
+        multi_benchmark_filename = f"multi_benchmark_results_{len(models_config)}_models_{timestamp}.json"
 
-            overall_results = {
-                "multi_benchmark_results": {
-                    "total_models": len(models_config),
-                    "total_scenarios": total_scenarios,
-                    "model_summaries": all_summaries
+        metadata = {
+            "config_file": args.config_file,
+            "samples": global_config['samples'],
+            "seed": global_config['seed'],
+            "models": [{"model": m['model'], "provider": m['provider'], 
+                       "max_concurrent_requests": m['max_concurrent_requests'],
+                       "max_retries": m['max_retries']} for m in models_config],
+            "excluded_actions": global_config['skip_actions'],
+            "timestamp": timestamp,
+            "end_time": datetime.now().isoformat(),
+            "total_models": len(models_config),
+            "total_scenarios": total_scenarios
+        }
+
+        results_summary = {
+            "total_models": len(models_config),
+            "total_scenarios": total_scenarios,
+            "model_summaries": all_summaries
+        }
+ 
+        detailed_results = {}
+        for model_provider, results in all_results.items():
+            if results:
+                model, provider = model_provider
+                model_key = f"{model}"
+                
+                detailed_results[model_key] = {
+                    "scenarios": {}
                 }
-            }
-            f.write(json.dumps(overall_results) + "\n")
+                
+                for trajectory in results:
+                    scenario_id = str(trajectory.scenario.id)
+                    detailed_results[model_key]["scenarios"][scenario_id] = {
+                        "scenario": trajectory.scenario.model_dump_json(),
+                        "action": trajectory.action.model_dump_json() if trajectory.action else None,
+                        "score": trajectory.score,
+                        "error": trajectory.error
+                    }
 
-            for trajectory in all_trajectories:
-                f.write(json.dumps(trajectory) + "\n")
+        final_output = {
+            "metadata": metadata,
+            "results": results_summary,
+            "detailed_results": detailed_results
+        }
 
-        overall_summary_file = LOG_PATH / f"multi_benchmark_summary_{timestamp}.json"
-        with open(overall_summary_file, 'w') as f:
-            summary_data = {
-                "timestamp": timestamp,
-                "end_time": datetime.now().isoformat(),
-                "config_file": args.config_file,
-                "config": config,
-                "results": all_summaries
-            }
-            json.dump(summary_data, f, indent=2)
+        with open(LOG_PATH / multi_benchmark_filename, 'w') as f:
+            json.dump(final_output, f, indent=2)
+
 
         console.print(f"\n[bold green]Multi-Model Benchmark Complete![/bold green]")
         display_summary_table(all_summaries)
@@ -306,15 +305,9 @@ def main():
             min_success = min(s['success_rate'] for s in all_summaries)
             max_success = max(s['success_rate'] for s in all_summaries)
             logfire.info(f"Success rate range: {min_success:.3f} - {max_success:.3f}")
-        
-        console.print(f"\n[bold]Files saved:[/bold]")
-        console.print(f"  - {multi_benchmark_filename} (all model results)")
-        console.print(f"  - {overall_summary_file.name} (summary)")
 
         logfire.info("Multi-model benchmark completed")
         logfire.info(f"Total models benchmarked: {len(all_summaries)}")
-        logfire.info(f"All results saved to: {multi_benchmark_filename}")
-        logfire.info(f"Summary saved to: {overall_summary_file}")
 
 if __name__ == '__main__':
     main()
