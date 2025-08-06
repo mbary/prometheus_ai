@@ -1,0 +1,124 @@
+{
+  "metadata": {
+    "config_file": "prometheus_ai/benchmarking/configs/cfg_free_run.yaml",
+    "samples": 2,
+    "seed": 42,
+    "models": [
+      {
+        "model": "Qwen3-0.6B",
+        "provider": "local",
+        "max_concurrent_requests": 3,
+        "max_retries": 1
+      },
+      {
+        "model": "openrouter/horizon-beta",
+        "provider": "openrouter",
+        "max_concurrent_requests": 3,
+        "max_retries": 1
+      },
+      {
+        "model": "mistralai/mistral-small-3.2-24b-instruct:free",
+        "provider": "openrouter",
+        "max_concurrent_requests": 3,
+        "max_retries": 1
+      }
+    ],
+    "excluded_actions": [
+      "set_color",
+      "dim"
+    ],
+    "timestamp": "20250806_112833",
+    "end_time": "2025-08-06T11:28:52.977858",
+    "total_models": 3,
+    "total_scenarios": 6
+  },
+  "results": {
+    "total_models": 3,
+    "total_scenarios": 6,
+    "model_summaries": [
+      {
+        "model": "Qwen3-0.6B",
+        "provider": "local",
+        "total_scenarios": 2,
+        "successful_scenarios": 2,
+        "failed_scenarios": 0,
+        "success_rate": 1.0,
+        "score_no_errors": 1.0,
+        "score_with_errors": 1.0,
+        "error_rate": 0.0
+      },
+      {
+        "model": "openrouter/horizon-beta",
+        "provider": "openrouter",
+        "total_scenarios": 2,
+        "successful_scenarios": 2,
+        "failed_scenarios": 0,
+        "success_rate": 1.0,
+        "score_no_errors": 1.0,
+        "score_with_errors": 1.0,
+        "error_rate": 0.0
+      },
+      {
+        "model": "mistralai/mistral-small-3.2-24b-instruct:free",
+        "provider": "openrouter",
+        "total_scenarios": 2,
+        "successful_scenarios": 1,
+        "failed_scenarios": 1,
+        "success_rate": 0.5,
+        "score_no_errors": 1.0,
+        "score_with_errors": 0.5,
+        "error_rate": 0.5
+      }
+    ]
+  },
+  "detailed_results": {
+    "Qwen3-0.6B": {
+      "scenarios": {
+        "2875": {
+          "scenario": "{\"id\":2875,\"full_command\":\"Heeey Bridgette!! Set the brightness to 50% in the office.\",\"wakeword_phrase\":\"Heeey Bridgette!!\",\"action_type\":\"set_brightness\",\"zone\":\"office\",\"scene\":null,\"light\":null,\"temperature\":null,\"brightness\":0.5,\"brightness_relative\":false,\"brightness_up_down\":\"up\",\"color\":null,\"split\":\"test\"}",
+          "action": "{\"thinking\":\"The user wants to set the brightness to 50% in the office.\",\"action_type\":\"set_brightness\",\"command\":{\"zone\":\"office\",\"light\":\"desk\",\"scene\":null,\"brightness\":{\"brightness\":50,\"relative\":false,\"up_down\":\"up\"},\"temperature\":null}}",
+          "score": 1,
+          "error": null
+        },
+        "2917": {
+          "scenario": "{\"id\":2917,\"full_command\":\"Bridgette, set the temperature of the lights in the lounge to 300.\",\"wakeword_phrase\":\"Bridgette\",\"action_type\":\"set_temperature\",\"zone\":\"lounge\",\"scene\":null,\"light\":null,\"temperature\":300,\"brightness\":null,\"brightness_relative\":null,\"brightness_up_down\":null,\"color\":null,\"split\":\"test\"}",
+          "action": "{\"thinking\":\"The user wants to set the temperature of the lights in the lounge to 300.\",\"action_type\":\"set_temperature\",\"command\":{\"zone\":\"lounge\",\"light\":null,\"scene\":null,\"brightness\":null,\"temperature\":300}}",
+          "score": 1,
+          "error": null
+        }
+      }
+    },
+    "openrouter/horizon-beta": {
+      "scenarios": {
+        "2875": {
+          "scenario": "{\"id\":2875,\"full_command\":\"Heeey Bridgette!! Set the brightness to 50% in the office.\",\"wakeword_phrase\":\"Heeey Bridgette!!\",\"action_type\":\"set_brightness\",\"zone\":\"office\",\"scene\":null,\"light\":null,\"temperature\":null,\"brightness\":0.5,\"brightness_relative\":false,\"brightness_up_down\":\"up\",\"color\":null,\"split\":\"test\"}",
+          "action": "{\"thinking\":\"User wants office brightness at 50% absolute.\",\"action_type\":\"set_brightness\",\"command\":{\"zone\":\"office\",\"light\":null,\"scene\":null,\"brightness\":{\"brightness\":50,\"relative\":false,\"up_down\":\"up\"},\"temperature\":null}}",
+          "score": 1,
+          "error": null
+        },
+        "2917": {
+          "scenario": "{\"id\":2917,\"full_command\":\"Bridgette, set the temperature of the lights in the lounge to 300.\",\"wakeword_phrase\":\"Bridgette\",\"action_type\":\"set_temperature\",\"zone\":\"lounge\",\"scene\":null,\"light\":null,\"temperature\":300,\"brightness\":null,\"brightness_relative\":null,\"brightness_up_down\":null,\"color\":null,\"split\":\"test\"}",
+          "action": "{\"thinking\":\"User requested to set the lounge lights to temperature 300.\",\"action_type\":\"set_temperature\",\"command\":{\"zone\":\"lounge\",\"light\":null,\"scene\":null,\"brightness\":null,\"temperature\":300}}",
+          "score": 1,
+          "error": null
+        }
+      }
+    },
+    "mistralai/mistral-small-3.2-24b-instruct:free": {
+      "scenarios": {
+        "2875": {
+          "scenario": "{\"id\":2875,\"full_command\":\"Heeey Bridgette!! Set the brightness to 50% in the office.\",\"wakeword_phrase\":\"Heeey Bridgette!!\",\"action_type\":\"set_brightness\",\"zone\":\"office\",\"scene\":null,\"light\":null,\"temperature\":null,\"brightness\":0.5,\"brightness_relative\":false,\"brightness_up_down\":\"up\",\"color\":null,\"split\":\"test\"}",
+          "action": null,
+          "score": null,
+          "error": "Failed to validate model Response: 9 validation errors for Response\ncontent.turn_on.action_type\n  Input should be 'turn_on' [type=literal_error, input_value='set_brightness', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_on.command.brightness.up_down\n  Input should be 'up' or 'down' [type=literal_error, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_off.action_type\n  Input should be 'turn_off' [type=literal_error, input_value='set_brightness', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_off.command.brightness.up_down\n  Input should be 'up' or 'down' [type=literal_error, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_scene.action_type\n  Input should be 'set_scene' [type=literal_error, input_value='set_brightness', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_scene.command.brightness.up_down\n  Input should be 'up' or 'down' [type=literal_error, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_brightness.command.brightness.up_down\n  Input should be 'up' or 'down' [type=literal_error, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_temperature.action_type\n  Input should be 'set_temperature' [type=literal_error, input_value='set_brightness', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_temperature.command.brightness.up_down\n  Input should be 'up' or 'down' [type=literal_error, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+        },
+        "2917": {
+          "scenario": "{\"id\":2917,\"full_command\":\"Bridgette, set the temperature of the lights in the lounge to 300.\",\"wakeword_phrase\":\"Bridgette\",\"action_type\":\"set_temperature\",\"zone\":\"lounge\",\"scene\":null,\"light\":null,\"temperature\":300,\"brightness\":null,\"brightness_relative\":null,\"brightness_up_down\":null,\"color\":null,\"split\":\"test\"}",
+          "action": "{\"thinking\":\"The user wants to set the temperature of the lights in the lounge to 300.\",\"action_type\":\"set_temperature\",\"command\":{\"zone\":\"lounge\",\"light\":null,\"scene\":null,\"brightness\":null,\"temperature\":300}}",
+          "score": 1,
+          "error": null
+        }
+      }
+    }
+  }
+}

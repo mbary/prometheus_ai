@@ -14,5 +14,5 @@ wheels/
 .env
 *.mp3
 *.m4a
-*.yaml
-*.yml
+# *.yaml
+# *.yml

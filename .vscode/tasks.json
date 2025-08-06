@@ -1,0 +1,59 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Test Provider Functionality",
+			"type": "shell",
+			"command": "uv run python test_provider_functionality.py",
+			"group": "test"
+		},
+		{
+			"label": "Test Main Function",
+			"type": "shell",
+			"command": "uv run python test_main_function.py",
+			"group": "test"
+		},
+		{
+			"label": "Test Direct Execution",
+			"type": "shell",
+			"command": "uv run python test_direct_execution.py",
+			"group": "test"
+		},
+		{
+			"label": "Test Mode Functionality",
+			"type": "shell",
+			"command": "uv run python test_mode_functionality.py",
+			"group": "test"
+		},
+		{
+			"label": "Test Benchmark Mode",
+			"type": "shell",
+			"command": "uv run python test_benchmark_mode.py",
+			"group": "test"
+		},
+		{
+			"label": "Test CLI Mode",
+			"type": "shell",
+			"command": "uv run python test_cli_mode.py",
+			"group": "test"
+		},
+		{
+			"label": "Test Multi Benchmark Mode",
+			"type": "shell",
+			"command": "uv run python test_multi_benchmark_mode.py",
+			"group": "test"
+		},
+		{
+			"label": "Test Example Config",
+			"type": "shell",
+			"command": "uv run python test_example_config.py",
+			"group": "test"
+		},
+		{
+			"label": "Test Comprehensive Mode",
+			"type": "shell",
+			"command": "uv run python test_comprehensive_mode.py",
+			"group": "test"
+		}
+	]
+}
