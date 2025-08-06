@@ -130,7 +130,8 @@ class Agent:
                  provider: str = "openrouter",
                  max_retries: int = 3,
                  model: str = None,
-                 benchmarking: bool = False) -> None:
+                 benchmarking: bool = False,
+                 mode: instructor.Mode = None) -> None:
 
         PROVIDERS = {
             "local": {
@@ -191,13 +192,16 @@ class Agent:
             logfire.error(f"Error initializing OpenAI client: {e}")
             raise e
         
-        if provider == 'local':
-            mode = instructor.Mode.TOOLS
+        # Use provided mode if given, otherwise use default logic
+        if mode is not None:
+            selected_mode = mode
+        elif provider == 'local':
+            selected_mode = instructor.Mode.TOOLS
         else:
-            mode = instructor.Mode.JSON
+            selected_mode = instructor.Mode.JSON
             
         self.deps: DependenciesManager = DependenciesManager(client=instructor.from_openai(openai_client, 
-                                                                                        mode=mode
+                                                                                        mode=selected_mode
                                                                                            ),
                                                             max_retries=max_retries,
                                                             bridge=self.bridge,
@@ -207,7 +211,7 @@ class Agent:
         self.SYS_PROMPT = self._build_sys_prompt(self.deps, self.state)
         logfire.instrument_openai()
         logfire.info(f"Model: {self.deps.model}")
-        logfire.info(f"Mode: {mode}")
+        logfire.info(f"Mode: {selected_mode}")
         logfire.info(f"Deps: {self.deps.model_dump()}")
 
     @logfire.instrument('executing_action', extract_args=True, record_return=True)

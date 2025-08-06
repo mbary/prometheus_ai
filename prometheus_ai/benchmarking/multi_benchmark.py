@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import asyncio
 import random
 import json
@@ -15,7 +16,6 @@ from rich import print
 from rich.table import Table
 from rich.console import Console
 
-import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.project_types import Trajectory
 
@@ -87,6 +87,7 @@ async def multi_benchmark(
         with logfire.span(f'multi_model_benchmarking: {model}'):
             logfire.info(f"Starting benchmarking for model: {model}")
             logfire.info(f"Provider: {provider}")
+            logfire.info(f"Mode: {model_config.get('mode')}")
             logfire.info(f"Samples: {global_config['samples']}")
             logfire.info(f"Concurrent requests: {model_config['max_concurrent_requests']}")
             logfire.info(f"Max retries: {model_config['max_retries']}")
@@ -102,6 +103,7 @@ async def multi_benchmark(
                     exclude_actions=global_config['skip_actions'],
                     max_retries=model_config['max_retries'],
                     seed=global_config['seed'],
+                    mode=model_config.get('mode'),
                 )
                 all_results[f"{model}:{provider}"] = results
 
@@ -280,13 +282,14 @@ def main():
         logfire.info("Multi-model benchmark comparison results")
         logfire.info(f"Total models compared: {len(all_summaries)}")
 
-        for summary in all_summaries:
-            logfire.info(f"Model: {summary['model']} ({summary['provider']})")
-            logfire.info(f"  - Total scenarios: {summary['total_scenarios']}")
-            logfire.info(f"  - Success rate: {summary['success_rate']:.3f}")
-            logfire.info(f"  - Score (no errors): {summary['score_no_errors']:.3f}")
-            logfire.info(f"  - Score (with errors): {summary['score_with_errors']:.3f}")
-            logfire.info(f"  - Error rate: {summary['error_rate']:.3f}")
+        with logfire.span('Individual model summaries'):
+            for summary in all_summaries:
+                logfire.info(f"Model: {summary['model']} ({summary['provider']})")
+                logfire.info(f"  - Total scenarios: {summary['total_scenarios']}")
+                logfire.info(f"  - Success rate: {summary['success_rate']:.3f}")
+                logfire.info(f"  - Score (no errors): {summary['score_no_errors']:.3f}")
+                logfire.info(f"  - Score (with errors): {summary['score_with_errors']:.3f}")
+                logfire.info(f"  - Error rate: {summary['error_rate']:.3f}")
 
         if len(all_summaries) > 1:
             best_success_model = max(all_summaries, key=lambda x: x['success_rate'])

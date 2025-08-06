@@ -1,12 +1,17 @@
 import os
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+
 import asyncio
 import random
 import json
 import argparse
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, List
 
+import instructor
 from prometheus_ai import Agent
 from utils.project_types import Scenario, Trajectory
 
@@ -33,7 +38,6 @@ from rich import print
             - [] if scene, check it's correct value vs command
                 - [] ensure scene value exists
                 - [] ensure that scene actually belongs to the zone
-
 """
 
 @logfire.instrument('load_scenarios', extract_args=True, record_return=True)
@@ -149,6 +153,7 @@ async def benchmark(
     exclude_actions: Optional[List[str]] = None,
     max_retries: int = 1,
     seed: Optional[int] = None,
+    mode: Optional[str] = None,
 ) -> List[Trajectory]:
     scenarios = load_scenarios(
         'mbary/hue_commands_synth_3k', 
@@ -160,10 +165,19 @@ async def benchmark(
     
     print(f"Loaded {len(scenarios)} scenarios after filtering (seed: {seed})")
     
+    # Convert string mode to instructor.Mode if provided
+    instructor_mode = None
+    if mode:
+        if hasattr(instructor.Mode, mode):
+            instructor_mode = getattr(instructor.Mode, mode)
+        else:
+            raise ValueError(f"Invalid mode: {mode}. Available modes: {[attr for attr in dir(instructor.Mode) if not attr.startswith('_')]}")
+    
     agent = Agent(benchmarking=True,
                   max_retries=max_retries,
                   model=model,
-                  provider=provider)
+                  provider=provider,
+                  mode=instructor_mode)
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
     trajectories = await tqdm.gather(*[run_agent_and_score(scenario=scenario,
@@ -187,6 +201,8 @@ def main():
                         help="Actions to skip during benchmarking (default: set_color dim)")
     parser.add_argument("--provider", type=str, default="local",
                         help="Provider for the model API (default: local)")
+    parser.add_argument("--mode", type=str, default=None,
+                        help="Instructor mode to use (e.g., TOOLS, JSON, ANTHROPIC_TOOLS) (default: None - uses provider default)")
 
     args = parser.parse_args()
 
@@ -210,6 +226,7 @@ def main():
         logfire.info(f"Start at: {datetime.now().isoformat()}")
         logfire.info(f"Provider: {args.provider}")
         logfire.info(f"Model: {args.model_name}")
+        logfire.info(f"Mode: {args.mode}")
         logfire.info(f"Samples: {args.samples}")
         logfire.info(f"Concurrent requests: {args.concurrent}")
         logfire.info(f"Seed: {args.seed}")
@@ -224,6 +241,7 @@ def main():
             model=args.model_name,
             seed=args.seed,
             provider=args.provider,
+            mode=args.mode,
         ))
 
         final_score_list_no_errors = [t.score for t in results if t.score is not None]
