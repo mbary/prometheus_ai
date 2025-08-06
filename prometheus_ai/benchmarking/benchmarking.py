@@ -9,7 +9,7 @@ import random
 import json
 import argparse
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 import instructor
 from prometheus_ai import Agent
@@ -19,6 +19,8 @@ import logfire
 from datasets import load_dataset
 from tqdm.asyncio import tqdm
 from rich import print
+from rich.table import Table
+from rich.console import Console
 
 ##TODOs
 """ 
@@ -103,10 +105,13 @@ def load_scenarios(
     logfire.info(f"Loaded {len(scenarios)} scenarios from {dataset_name} ({split} split) with limit={limit}, seed={seed}")
     return scenarios
 
+def _score_action(action,scenario):
+    """this will run all the scoring functions on the action and scenario"""
+    pass
 
 
 @logfire.instrument('score_action', extract_args=True, record_return=True)
-def score_action(action, scenario):
+def tool_usage(action, scenario):
     """
     Scores the action based on the command.
     """
@@ -114,6 +119,9 @@ def score_action(action, scenario):
     if action and action.action_type == scenario.action_type:
         score = 1
     return score
+
+
+
 
 @logfire.instrument('run_agent_and_score', extract_args=True, record_return=True)
 async def run_agent_and_score(
@@ -134,7 +142,7 @@ async def run_agent_and_score(
             )
             return trajectory
         else:
-            score = score_action(action, scenario)
+            score = tool_usage(action, scenario)
             trajectory = Trajectory(
                 scenario=scenario,
                 action=action,
@@ -185,6 +193,30 @@ async def benchmark(
                                                       semaphore=semaphore, 
                                                       agent=agent) for scenario in scenarios], desc=f"Benchmarking {model} yo")
     return trajectories
+
+def  display_summary_table(summary_dict: Dict):
+    console = Console()
+    results = summary_dict["benchmark_results"]
+    table = Table(title="Benchmark Summary")
+
+    table.add_column("Model", style="cyan", no_wrap=True)
+    table.add_column("Total Scenarios", style="magenta", justify="right")
+    table.add_column("Successful Scenarios", style="green", justify="right")
+    table.add_column("Errors", style="red", justify="right")
+    table.add_column("Success Rate", style="green", justify="right")
+    table.add_column("Score (no errors)", style="green", justify="right")
+    table.add_column("Score (with errors)", style="green", justify="right")
+
+    table.add_row(
+        summary_dict.get("model", "Unknown"),
+        str(results["total_scenarios"]),
+        str(results["successful_scenarios"]),
+        str(results["failed_scenarios"]),
+        f"{results['success_rate']:.2%}",
+        f"{results['score_no_errors']:.3f}",
+        f"{results['score_with_errors']:.3f}"
+    )
+    console.print(table)
 
 def main():
     """Main function that coordinates the benchmarking process with command-line arguments."""
@@ -299,6 +331,7 @@ def main():
         logfire.info(f"Completed (no errors) with result: {final_score_no_errors}")
         logfire.info(f"Completed (with errors) with result: {final_score_with_errors}")
 
+        display_summary_table(benchmark_results)
 
 if __name__ == '__main__':
     main()
