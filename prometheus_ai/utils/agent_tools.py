@@ -8,7 +8,7 @@ from utils.project_types import StateManager, DependenciesManager, Command
 
 
 class Action(BaseModel):
-    # thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
+    # think: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
 
     selected_action: Union[turn_on, turn_off, set_scene, set_brightness, Dim, set_temperature] = Field(description="The type of action to be performed.")
     command: Command = Field(description="The details of the command to be executed.")
@@ -16,7 +16,7 @@ class Action(BaseModel):
 
 class turn_on(BaseModel):
     """Turn on the light or a zone"""
-    thinking: str = Field(description="Think about the command to turn on the lights in the specified zone.")
+    think: str = Field(description="Think about the command to turn on the lights in the specified zone.")
     action_type: Literal["turn_on"] = "turn_on"
     command: Command = Field(description="Details of the action to be performed")
 
@@ -36,7 +36,7 @@ class turn_on(BaseModel):
 
 class turn_off(BaseModel):
     """Turn off the light or a zone"""
-    thinking: str = Field(description="Think about the command to turn off the lights in the specified zone.")
+    think: str = Field(description="Think about the command to turn off the lights in the specified zone.")
     action_type: Literal["turn_off"] = "turn_off"
     command: Command = Field(description="Details of the action to be performed")
 
@@ -56,7 +56,7 @@ class turn_off(BaseModel):
 
 class set_scene(BaseModel):
     """Set the selected scene in the specified zone"""
-    thinking: str = Field(description="What scene does the user what to set?")
+    think: str = Field(description="What scene does the user what to set?")
     action_type: Literal["set_scene"] = "set_scene"
     command: Command = Field(description="Details of the action to be performed")
 
@@ -74,7 +74,7 @@ class set_scene(BaseModel):
 class set_brightness(BaseModel):
     """Set the brightness of the specified zone or light.
     Can be set in absolute terms (e.g. 50) or relative terms (e.g. increase by 20%)."""
-    thinking: str = Field(description="What brightness does the user want to set?")
+    think: str = Field(description="What brightness does the user want to set?")
     action_type: Literal["set_brightness"] = "set_brightness"
     command: Command = Field(description="Details of the action to be performed")
 
@@ -126,8 +126,8 @@ class set_brightness(BaseModel):
 
 
 class set_temperature(BaseModel):
-    """Set the temperature of the specified zone or light."""
-    thinking: str = Field(description="How warm does the user want the lights to be?")
+    """Set the light temperature of the specified zone or a light."""
+    think: str = Field(description="How warm does the user want the lights to be?")
     action_type: Literal["set_temperature"] = "set_temperature"
     command: Command = Field(description="Details of the action to be performed")
     
@@ -147,7 +147,7 @@ class set_temperature(BaseModel):
 
 class Dim(BaseModel):
     """Dim the specified zone or light by 50% of its current brightness."""
-    thinking: str = Field(description="Where does the user want to dim the lights?")
+    think: str = Field(description="Where does the user want to dim the lights?")
     action_type: Literal["dim"] = "dim"
     command: Command = Field(description="Details of the action to be performed")
 
