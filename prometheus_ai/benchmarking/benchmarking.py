@@ -168,8 +168,9 @@ async def benchmark(
     # Convert string mode to instructor.Mode if provided
     instructor_mode = None
     if mode:
-        if hasattr(instructor.Mode, mode):
-            instructor_mode = getattr(instructor.Mode, mode)
+        print(f"MODE IN KURWA BENCHMARK: {mode}")
+        if hasattr(instructor.Mode, mode.upper()):
+            instructor_mode = getattr(instructor.Mode, mode.upper())
         else:
             raise ValueError(f"Invalid mode: {mode}. Available modes: {[attr for attr in dir(instructor.Mode) if not attr.startswith('_')]}")
     
