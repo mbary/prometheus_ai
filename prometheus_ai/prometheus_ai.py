@@ -266,7 +266,6 @@ class Agent:
             zone_devices = {zone:list(val['devices'].keys()) for zone, val in state.bridge_state['zones'].items()}
             zone_devices = self.format_sections(zone_devices)
 
-
         SYS_PROMPT_COMMAND = f"""You are an assistant parsing a command to be executed by a light controlling system.
         #You have access to the following tools:
         - turn_on - Turns on the selected lights or zone
@@ -281,19 +280,8 @@ class Agent:
         - command: A structured command containing the details of the action to be performed.
 
         #Instructions:
-        * Respond in the following format:
-        <think>
-        [your thoughts here]
-        </think>
-        <tool>
-        * When you have found the answer, respond in the following format:
-        <thinkin>
-        [your thoughts here]
-        </think>
-        <answer>
-        [final answer here]
-        </answer>
         * Keep your responses concise and focused on the action to be performed.
+        * If set_temperature, do not set brightness level
 
         #The available zones are: 
         {zones}
