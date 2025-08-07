@@ -59,7 +59,8 @@ class Command(BaseModel):
                                        ge=153, le=500,
                                        examples=[153, 200, 300, 400, 500],
                                        default=None,) 
-    brightness: Union[Brightness, None] = None
+    # brightness: Union[Brightness, None] = None
+    brightness: Brightness
 
 
 class Scenario(BaseModel):
@@ -80,7 +81,7 @@ class Trajectory(BaseModel):
     scenario: Scenario
     action: Any = None
     error: Optional[str] = None
-    total_score: Union[int,None] = None
+    total_score: Union[int,float,None] = None
     success_rate: Optional[Union[float,None]] = None
     correct_tool: Optional[Union[int,None]] = None
     correct_zone: Optional[Union[int,None]] = None
