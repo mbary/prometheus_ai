@@ -11,10 +11,10 @@ import json
 from rich import print
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm
-
+from datasets import Dataset, load_dataset
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
-from utils.project_types import Brightness
+from utils.project_types import Brightness, Scenario
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -25,7 +25,7 @@ MODEL_FREE = "deepseek/deepseek-chat-v3-0324:free"
 MODEL = "deepseek/deepseek-chat-v3-0324"
 DATA_DIR = Path("./synth_commands")
 
-semaphore = asyncio.Semaphore(10)
+semaphore = asyncio.Semaphore(20)
   
 
 class SynthCommand(BaseModel):
@@ -59,7 +59,7 @@ class SynthCommand(BaseModel):
                                        ge=153, le=500,
                                        examples=[153, 200, 300, 400, 500],
                                        default=None)
-    brightness: Union[Brightness, None] = Field(default=None,)
+    brightness: Union[Brightness] = Field(default=None,)
 
     color: Union[str, None] = Field(description="The color to be set in the specified zone.",
                                  examples=["red", "blue", "green", "yellow", "purple", "orange", "pink", "white"],
@@ -69,18 +69,18 @@ class SynthResponse(BaseModel):
     commands: List[SynthCommand] = Field(description="A list of commands that can be executed by the light controlling system.")
 
 
-class Scenario(BaseModel):
-    """A scenario for the light controlling system."""
-    id: int
-    full_command: str
-    wakeword_phrase: str
-    action_type: str
-    zone: str
-    scene: Union[str, None]
-    light: Union[str, None]
-    temperature: Union[int, None]
-    brightness: Union[Brightness, None]
-    split: Literal["train", "test"]
+# class Scenario(BaseModel):
+#     """A scenario for the light controlling system."""
+#     id: int
+#     full_command: str
+#     wakeword_phrase: str
+#     action_type: str
+#     zone: str
+#     scene: Union[str, None]
+#     light: Union[str, None]
+#     temperature: Union[int, None]
+#     brightness: Union[Brightness, None]
+#     split: Literal["train", "test"]
 
 
 async def generate_commands(n_queries:int = 10,
@@ -153,9 +153,9 @@ async def generate_commands(n_queries:int = 10,
       - 'ceiling' (light)
       - 'floor' (light)
     - lounge:
-      - 'TV1' (light)
-      - 'TV2' (light)
-      - 'Flartsy' (plug)
+      - 'tv1' (light)
+      - 'tv2' (light)
+      - 'flartsy' (plug)
       - 'standing' (plug)
     - lounge floor lights:
       - 'standing' (plug)
@@ -200,7 +200,7 @@ async def generate_all_commands():
     async with semaphore:
         return await generate_commands()
     
-async def main(n_runs:int = 500):
+async def main(n_runs:int = 100):
     
     tasks = [generate_all_commands() for _ in range(n_runs)]
     results = await tqdm.gather(*tasks)
@@ -217,7 +217,7 @@ serialised_results=[res.model_dump_json() for res in results]
 
 list_scenarios=[]
 id=0
-with open(DATA_DIR/"synth_commands_4k.jsonl", "a", encoding="utf-8") as file:
+with open(DATA_DIR/"synth_commands_5k_v2.jsonl", "a", encoding="utf-8") as file:
   for res in results:
         file.write(
             Scenario(
@@ -250,7 +250,7 @@ with open(DATA_DIR/"synth_commands_4k.jsonl", "a", encoding="utf-8") as file:
                 # brightness_relative=res.brightness.relative if res.brightness else None,
                 # brightness_up_down=res.brightness.up_down if res.brightness else None,
                 color=res.color,
-                split="train" if id < 3200 else "test"
+                split="train" if id < 4000 else "test"
             ).model_dump_json()
         )
         id += 1
@@ -258,12 +258,12 @@ type(list_scenarios[0])
 dict_scenarios = [json.loads(scenario) for scenario in list_scenarios]
 train_scenarios = [scenario for scenario in dict_scenarios if scenario['split'] == 'train']
 test_scenarios = [scenario for scenario in dict_scenarios if scenario['split'] == 'test']
-from datasets import Dataset
+
 hf_ds_train = Dataset.from_list(train_scenarios)
 hf_ds_test = Dataset.from_list(test_scenarios)
 
-# hf_ds_train.push_to_hub("mbary/hue_commands_synth_4k", private=True, split="train")
-# hf_ds_test.push_to_hub("mbary/hue_commands_synth_4k", split="test")
+# hf_ds_train.push_to_hub("mbary/hue_commands_synth_5k_v2", private=True, split="train")
+# hf_ds_test.push_to_hub("mbary/hue_commands_synth_5k_v2", split="test")
 
 # with open(DATA_DIR/"synth_commands3_3k.jsonl","w",encoding="utf-8") as file:
 #     file.write(json.dumps(serialised_results, indent=4))
@@ -272,3 +272,136 @@ hf_ds_test = Dataset.from_list(test_scenarios)
 # if __name__=="__main__":
 #     results = asyncio.run(main())
 #     print(results)
+
+
+#############################
+##### DATA CLEANING FFS #####
+#############################
+
+data_train = load_dataset("mbary/hue_commands_synth_5k", split="train") 
+data_test = load_dataset("mbary/hue_commands_synth_5k", split="test")
+len(data_train),len(data_test)
+
+all_scenarios = list(data_train) + list(data_test)
+print(f"Total scenarios: {len(all_scenarios)}")
+
+
+no_bright = [x for x in all_scenarios if x['brightness'] is None]
+bright = [x for x in all_scenarios if x['brightness'] is not None]
+len(no_bright), len(bright)
+"""
+So now, due to how the eval will be set up, I need to 
+ensure that each scenario MUST HAVE a brightness object, but everything else can be None!
+
+
+1. [X] Scenarios no brightness:
+- So I have to check how many scnearios DO NOT HAVE brightness and then append it 
+  with hte brightness object (Brightness(none, none, none))
+
+- [X] I probably should ensure that the no bright objs are correct i.e. that the full command 
+  CERTAINLY does NOT contain 'brightness' or something like this in the body
+
+
+2. Scenarios with brightness:
+- I have to ensure that the ones that have brightness are correct i.e. there are no 
+    missing fields (where they're not supposed to be missing)
+    Rules:
+    - if 'increase' in the full command:
+      - relative = True
+      - up_down = 'up'
+    - if 'decrease' in the full command:
+      - relative = True
+      - up_down = 'down'
+    - if 'set' in the full command:
+      - relative = False
+      - up_down = None
+    - ensure that all brightness levels are 0<=level<=100
+
+
+- ensure that in the scenarios with brightness:
+  - the temperature is None as that often was incorrect in the agent answers
+
+
+3. All scnerrios:
+All scnearios should contain the following fields:
+- id
+- full_command
+- wakeword_phrase
+- action_type
+- zone
+"""
+#################
+## 1 No bright ##
+#################
+cleaned_no_bright = []
+for scenario in no_bright:
+    scen = Scenario(**scenario)
+    scen.brightness = Brightness(
+        brightness=None, relative=None, up_down=None
+    )
+    cleaned_no_bright.append(scen)
+
+type(cleaned_no_bright[0].model_dump_json())
+len([x for x in cleaned_no_bright if 'brightness' in  x.full_command.lower()])
+len(cleaned_no_bright)
+
+
+##################
+#### 2 Bright ####
+##################
+len([x for x in bright if 'increase' in x['full_command'].lower() and x['brightness']['relative'] is False] )
+print([x for x in bright if 'increase' in x['full_command'].lower() and x['brightness']['relative'] is False])
+
+len([x for x in bright if 'increase' in x['full_command'].lower() and x['brightness']['relative'] is None] )
+
+len([x for x in bright if 'decrease' in x['full_command'].lower() and x['brightness']['relative'] is False] )
+print([x for x in bright if 'decrease' in x['full_command'].lower() and x['brightness']['relative'] is False] )
+
+# examples where relative SHOULD be "True"  but it's "False"
+len([x for x in bright if 'by' in x['full_command'].lower() and x['brightness']['relative'] is False] )
+print([x for x in bright if 'by' in x['full_command'].lower() and x['brightness']['relative'] is False] )
+brightness_rel_true_but_false=[x for x in bright if 'by' in x['full_command'].lower() and x['brightness']['relative'] is False] 
+for i in bright:
+    if 'by' in i['full_command'].lower() and i['brightness']['relative'] is False:
+        i['brightness']['relative'] = True
+
+len([x for x in bright if 'set' in x['full_command'].lower() and x['brightness']['relative'] is True] )
+len([x for x in bright if  x['brightness']['brightness'] >100] )
+len([x for x in bright if  x['brightness']['brightness'] <0] )
+
+
+type(bright[0])
+cleaned_bright = [Scenario(**x) for x in bright]
+type(cleaned_no_bright[0])
+
+type(cleaned_bright[0])
+type(cleaned_no_bright)
+print(cleaned_bright[0])
+
+
+cleanded_data_all = cleaned_no_bright + cleaned_bright
+len(cleanded_data_all), len(all_scenarios)
+
+len([x for x in cleanded_data_all if x.temperature and (x.temperature < 153 or x.temperature > 500)])
+len([x for x in cleanded_data_all if x.light == "TV1"])
+# normalise all values - to lower
+
+for i in cleanded_data_all:
+    i.light = i.light.lower() if i.light else None
+    i.zone = i.zone.lower()
+    i.scene = i.scene.lower() if i.scene else None
+
+len([x for x in cleanded_data_all if 'color' in x.full_command.lower()])
+
+len(cleanded_data_all)
+
+
+clean_train = [json.loads(x.model_dump_json()) for x in cleanded_data_all if x.split == "train"]
+clean_test = [json.loads(x.model_dump_json()) for x in cleanded_data_all if x.split == "test"]
+
+hf_ds_train = Dataset.from_list(clean_train)
+hf_ds_test = Dataset.from_list(clean_test)
+
+
+# hf_ds_train.push_to_hub("mbary/hue_commands_synth_5k_v2", private=True, split="train")
+# hf_ds_test.push_to_hub("mbary/hue_commands_synth_5k_v2", split="test")
