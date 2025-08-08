@@ -81,6 +81,7 @@ class Trajectory(BaseModel):
     scenario: Scenario
     action: Any = None
     error: Optional[str] = None
+    error_type: Optional[str] = None
     total_score: Union[int,float,None] = None
     success_rate: Optional[Union[float,None]] = None
     correct_tool: Optional[Union[int,None]] = None
