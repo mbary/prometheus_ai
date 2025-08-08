@@ -1,9 +1,7 @@
 import os
 import sys
 from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent.parent))
-
+from collections import Counter
 import asyncio
 import random
 import json
@@ -12,9 +10,6 @@ from datetime import datetime
 from typing import Optional, List, Dict
 
 import instructor
-from prometheus_ai import Agent
-from utils.project_types import Scenario, Trajectory
-
 import logfire
 from datasets import load_dataset
 from tqdm.asyncio import tqdm
@@ -22,6 +17,9 @@ from rich import print
 from rich.table import Table
 from rich.console import Console
 
+sys.path.append(str(Path(__file__).parent.parent))
+from prometheus_ai import Agent
+from utils.project_types import Scenario, Trajectory
 ##TODOs
 """ 
 - [] Implement scoring functions
@@ -44,7 +42,7 @@ from rich.console import Console
 
 @logfire.instrument('load_scenarios', extract_args=True, record_return=True)
 def load_scenarios(
-    dataset_name: str = "mbary/hue_commands_synth_4k", 
+    dataset_name: str = "mbary/hue_commands_synth_5k_v3", 
     split: str = "train", 
     limit: Optional[int] = None,
     exclude_actions: Optional[List[str]] = None,
@@ -83,21 +81,18 @@ def load_scenarios(
             
         if item['action_type'] in exclude_actions:
             continue
-            
+        
         scenario = Scenario(
             id=item.get('id', i),
             full_command=item['full_command'],
             wakeword_phrase=item['wakeword_phrase'],
             action_type=item['action_type'],
             zone=item['zone'],
-            scene=item.get('scene'),
-            light=item.get('light'),
-            temperature=item.get('temperature'),
-            brightness=item.get('brightness'),
-            brightness_relative=item.get('brightness_relative', False),
-            brightness_up_down=item.get('brightness_up_down'),
-            color=item.get('color'),
-            split=item.get('split', split)
+            scene=item['scene'],
+            light=item['light'],
+            temperature=item['temperature'],
+            brightness=item['brightness'] ,
+            split=item['split']
         )
         scenarios.append(scenario)
         processed_count += 1
@@ -128,9 +123,6 @@ def correct_zone(action, scenario) -> int:
 
 @logfire.instrument('correct_scene', extract_args=True, record_return=True)
 def correct_scene(action, scenario) -> int:
-    """
-    Checks if the action's scene matches the scenario's scene.
-    """
     score = 0
     if action and action.command.scene == scenario.scene:
         score = 1
@@ -138,9 +130,6 @@ def correct_scene(action, scenario) -> int:
 
 @logfire.instrument('correct_light', extract_args=True, record_return=True)
 def correct_light(action, scenario) -> int:
-    """
-    Checks if the action's light matches the scenario's light.
-    """
     score = 0
     if action and action.command.light == scenario.light:
         score = 1
@@ -148,113 +137,46 @@ def correct_light(action, scenario) -> int:
 
 @logfire.instrument('correct_temperature', extract_args=True, record_return=True)
 def correct_temperature(action, scenario) -> int:
-    """
-    Checks if the action's temperature matches the scenario's temperature.
-    """
     score = 0
     if action and action.command.temperature == scenario.temperature:
         score = 1
     return score
 
+
 @logfire.instrument('correct_brightness', extract_args=True, record_return=True)
-def correct_brightness(action, scenario) -> dict[str,int]:
+def correct_brightness(action, scenario) -> int:
 
-    correct_brightness_level = 0
-    if scenario.brightness:
-        brightness_relative = 0
-        brightness_up_down = 0
-        if action and hasattr(action.command, 'brightness') and action.command.brightness.brightness == scenario.brightness:
-            correct_brightness_level = 1
-        print("SCENARIO")
-        print(scenario)
-        if action.command.brightness.relative == scenario.brightness.relative:
-            brightness_relative = 1
+    score = 0
+    if action and action.command.brightness.brightness == scenario.brightness.brightness:
+        score = 1
+    return score
 
-        if action.command.brightness.up_down == scenario.brightness.up_down:
-            brightness_up_down = 1
+@logfire.instrument('correct_brightness_relative', extract_args=True, record_return=True)
+def correct_brightness_relative(action, scenario) -> int:
+    score = 0
+    if action and action.command.brightness.relative == scenario.brightness.relative:
+        score = 1
+    return score
 
-        return {
-            "brightness_level": correct_brightness_level,
-            "brightness_relative": brightness_relative,
-            "brightness_up_down": brightness_up_down
-        }
-
-    elif action and action.command.brightness == scenario.brightness:
-        print("ELIF BRIGHTNESS")
-        print(action)
-        correct_brightness_level = 1
-        brightness_relative= None
-        brightness_up_down = None
-    return {
-        "brightness_level": correct_brightness_level,
-        "brightness_relative": brightness_relative,
-        "brightness_up_down": brightness_up_down
-    }
-
-# @logfire.instrument('correct_brightness', extract_args=True, record_return=True)
-# def correct_brightness(action, scenario) -> int:
-#     """
-#     Checks if the action's brightness matches the scenario's brightness.
-#     """
-#     score = 0
-#     if action and action.command.brightness.brightness == scenario.brightness:
-#         score = 1
-#     return score
-
-# @logfire.instrument('correct_brightness_relative', extract_args=True, record_return=True)
-# def correct_brightness_relative(action, scenario) -> int:
-#     """
-#     Checks if the action's brightness relative matches the scenario's brightness relative.
-#     """
-#     score = 0
-#     if action and action.command.brightness.relative == scenario.brightness_relative:
-#         score = 1
-#     return score
-
-# @logfire.instrument('correct_brightness_up_down', extract_args=True, record_return=True)
-# def correct_brightness_up_down(action, scenario) -> int:
-#     """
-#     Checks if the action's brightness up/down matches the scenario's brightness up/down.
-#     """
-#     score = 0
-#     if action and action.command.brightness.up_down == scenario.brightness_up_down:
-#         score = 1
-#     return score
+@logfire.instrument('correct_brightness_up_down', extract_args=True, record_return=True)
+def correct_brightness_up_down(action, scenario) -> int:
+    score = 0
+    if action and action.command.brightness.up_down == scenario.brightness.up_down:
+        score = 1
+    return score
 
 @logfire.instrument('score_action', extract_args=True, record_return=True)
 def score_action(action,scenario) -> Dict[str, float]:
-    """this will run all the scoring functions on the action and scenario"""
-    # print(f"Scoring action: {action} against scenario: {scenario}")
     correct_tool_score = tool_usage(action, scenario)
     correct_zone_score = correct_zone(action, scenario)
     correct_scene_score = correct_scene(action, scenario)
     correct_light_score = correct_light(action, scenario)
     correct_temperature_score = correct_temperature(action, scenario)
-    correct_brightness_dict = correct_brightness(action, scenario)
-    # correct_brightness_relative_score = correct_brightness_relative(action, scenario)
-    # correct_brightness_up_down_score = correct_brightness_up_down(action, scenario)
-
-    total_score = (
-        correct_tool_score +
-        correct_zone_score +
-        correct_scene_score +
-        correct_light_score +
-        correct_temperature_score
-    )
-
-    correct_brightness_score = correct_brightness_dict["brightness_level"]
-    total_score += correct_brightness_score
-
-    correct_brightness_relative_score = correct_brightness_dict["brightness_relative"]
-    if correct_brightness_relative_score is not None:
-        total_score += correct_brightness_relative_score
-
-    correct_brightness_up_down_score = correct_brightness_dict["brightness_up_down"]
-    if correct_brightness_up_down_score is not None:
-        total_score += correct_brightness_up_down_score
+    correct_brightness_score = correct_brightness(action, scenario)
+    correct_brightness_relative_score = correct_brightness_relative(action, scenario)
+    correct_brightness_up_down_score = correct_brightness_up_down(action, scenario)
 
     score_dict = {
-    "total_score": total_score,
     "correct_tool": correct_tool_score,
     "correct_zone": correct_zone_score,
     "correct_scene": correct_scene_score,
@@ -266,7 +188,6 @@ def score_action(action,scenario) -> Dict[str, float]:
     }
     
     return score_dict
-
 
 @logfire.instrument('run_agent_and_score', extract_args=True, record_return=True)
 async def run_agent_and_score(
@@ -288,23 +209,14 @@ async def run_agent_and_score(
             return trajectory
         else:
             score = score_action(action, scenario)
-            applicable_metrics = 0
-            print(scenario)
-            if scenario.action_type: applicable_metrics += 1 
-            if scenario.zone: applicable_metrics += 1  
-            if scenario.scene is not None: applicable_metrics += 1 
-            if scenario.light is not None: applicable_metrics += 1  
-            if scenario.temperature is not None: applicable_metrics += 1 
-            if scenario.brightness is not None: applicable_metrics += 3  # bc brightness has 3 attributes
-            # if scenario.brightness is not None: applicable_metrics += 1
-            # if scenario.brightness.up_down is not None: applicable_metrics += 1  
-            
-            success_rate = score['total_score'] / applicable_metrics if applicable_metrics > 0 else 0
+
+            normalized_total_score = sum(score.values()) / len(score) if len(score) > 0 else 0
+            success_rate = normalized_total_score
             
             trajectory = Trajectory(
                 scenario=scenario,
                 action=action,
-                total_score=score['total_score'],
+                total_score=normalized_total_score,
                 success_rate=success_rate,
                 correct_tool=score['correct_tool'],
                 correct_zone=score['correct_zone'],
@@ -331,7 +243,7 @@ async def benchmark(
     mode: Optional[str] = None,
 ) -> List[Trajectory]:
     scenarios = load_scenarios(
-        'mbary/hue_commands_synth_4k', 
+        'mbary/hue_commands_synth_5k_v3', 
         split='test', 
         limit=num_scenarios,
         exclude_actions=exclude_actions,
@@ -342,7 +254,6 @@ async def benchmark(
 
     instructor_mode = None
     if mode:
-        print(f"MODE IN KURWA BENCHMARK: {mode}")
         if hasattr(instructor.Mode, mode.upper()):
             instructor_mode = getattr(instructor.Mode, mode.upper())
         else:
@@ -389,17 +300,23 @@ def display_summary_table(summary_dict: Dict):
         detailed_table = Table(title="Detailed Scoring Breakdown")
         detailed_table.add_column("Metric", style="cyan")
         detailed_table.add_column("Accuracy", style="green", justify="right")
-        detailed_table.add_column("Total Applicable", style="magenta", justify="right")
-        
+        detailed_table.add_column("Total Scenarios", style="magenta", justify="right")
+
         for metric, data in results["detailed_scores"].items():
-            if data["applicable"] > 0: 
-                accuracy = data["correct"] / data["applicable"]
-                detailed_table.add_row(
-                    metric.replace("_", " ").title(),
-                    f"{accuracy:.2%}",
-                    str(data["applicable"])
-                )
+            detailed_table.add_row(
+                metric.replace("_", " ").title(),
+                f"{data:.2%}",
+                str(results["successful_scenarios"])
+            )
         console.print(detailed_table)
+        
+        if "error_details" in results:
+            error_table = Table(title="Error Details")
+            error_table.add_column("Error Type", style="red")
+            error_table.add_column("Count", style="red", justify="right")
+            for error_type, count in results["error_details"].items():
+                error_table.add_row(error_type, str(count))
+            console.print(error_table)
 
 def main():
     """Main function that coordinates the benchmarking process with command-line arguments."""
@@ -423,7 +340,7 @@ def main():
     args = parser.parse_args()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    LOG_PATH = Path("./logs/")
+    LOG_PATH = Path(__file__).parent.resolve() / "logs"
     LOG_PATH.mkdir(parents=True, exist_ok=True)
     
     logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
@@ -469,58 +386,25 @@ def main():
         successful_trajectories = [t for t in results if not t.error]
         error_trajectories = [t for t in results if t.error]
 
-        detailed_scores = {
-            "correct_tool": {"correct": 0, "applicable": 0},
-            "correct_zone": {"correct": 0, "applicable": 0},
-            "correct_scene": {"correct": 0, "applicable": 0},
-            "correct_light": {"correct": 0, "applicable": 0},
-            "correct_temperature": {"correct": 0, "applicable": 0},
-            "correct_brightness": {"correct": 0, "applicable": 0},
-            "correct_brightness_relative": {"correct": 0, "applicable": 0},
-            "correct_brightness_up_down": {"correct": 0, "applicable": 0}
-        }
-        
-        for trajectory in successful_trajectories:
-            if trajectory.scenario.action_type:
-                detailed_scores["correct_tool"]["applicable"] += 1
-                if trajectory.correct_tool:
-                    detailed_scores["correct_tool"]["correct"] += 1
-                    
-            if trajectory.scenario.zone:
-                detailed_scores["correct_zone"]["applicable"] += 1
-                if trajectory.correct_zone:
-                    detailed_scores["correct_zone"]["correct"] += 1
-                    
-            if trajectory.scenario.scene is not None:
-                detailed_scores["correct_scene"]["applicable"] += 1
-                if trajectory.correct_scene:
-                    detailed_scores["correct_scene"]["correct"] += 1
-                    
-            if trajectory.scenario.light is not None:
-                detailed_scores["correct_light"]["applicable"] += 1
-                if trajectory.correct_light:
-                    detailed_scores["correct_light"]["correct"] += 1
-                    
-            if trajectory.scenario.temperature is not None:
-                detailed_scores["correct_temperature"]["applicable"] += 1
-                if trajectory.correct_temperature:
-                    detailed_scores["correct_temperature"]["correct"] += 1
-                    
-            if trajectory.scenario.brightness is not None:
-                detailed_scores["correct_brightness"]["applicable"] += 1
-                if trajectory.correct_brightness:
-                    detailed_scores["correct_brightness"]["correct"] += 1
-                    
-            if trajectory.scenario.brightness and trajectory.scenario.brightness.relative is not None:
-                detailed_scores["correct_brightness_relative"]["applicable"] += 1
-                if trajectory.correct_brightness_relative:
-                    detailed_scores["correct_brightness_relative"]["correct"] += 1
-                    
-            if trajectory.scenario.brightness and trajectory.scenario.brightness.up_down is not None:
-                detailed_scores["correct_brightness_up_down"]["applicable"] += 1
-                if trajectory.correct_brightness_up_down:
-                    detailed_scores["correct_brightness_up_down"]["correct"] += 1
+        correct_tool_final_score = sum(t.correct_tool for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+        correct_zone_final_score = sum(t.correct_zone for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+        correct_scene_final_score = sum(t.correct_scene for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+        correct_light_final_score = sum(t.correct_light for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+        correct_temperature_final_score = sum(t.correct_temperature for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+        correct_brightness_final_score = sum(t.correct_brightness for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+        correct_brightness_relative_final_score = sum(t.correct_brightness_relative for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+        correct_brightness_up_down_final_score = sum(t.correct_brightness_up_down for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
 
+        detailed_scores = {
+            "correct_tool": correct_tool_final_score,
+            "correct_zone": correct_zone_final_score,
+            "correct_scene": correct_scene_final_score,
+            "correct_light": correct_light_final_score,
+            "correct_temperature": correct_temperature_final_score,
+            "correct_brightness": correct_brightness_final_score,
+            "correct_brightness_relative": correct_brightness_relative_final_score,
+            "correct_brightness_up_down": correct_brightness_up_down_final_score
+        }
         with open(LOG_PATH / f"benchmark_results_{args.model_name.replace('/', '_').replace('-','_')}_{len(results)}_{timestamp}.json", 'a') as f:
             metadata = {
                 "samples": len(results),
@@ -546,10 +430,14 @@ def main():
                     "score_no_errors": final_score_no_errors,
                     "score_with_errors": final_score_with_errors,
                     "error_rate": len(error_trajectories) / len(results) if results else 0,
-                    "detailed_scores": detailed_scores
+                    "detailed_scores": detailed_scores,
                 },
                 "model": args.model_name
             }
+            if len(error_trajectories) > 0:
+                error_dict = Counter((t.error for t in error_trajectories))
+                benchmark_results["benchmark_results"]["error_details"] = error_dict
+
             f.write(json.dumps(benchmark_results) + "\n")
 
             for trajectory in results:
