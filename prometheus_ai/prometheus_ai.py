@@ -215,7 +215,7 @@ class Agent:
         logfire.info(f"Deps: {self.deps.model_dump()}")
 
     @logfire.instrument('executing_action', extract_args=True, record_return=True)
-    async def action(self, user_prompt: str) -> Union[None, AGENTACTIONS]:
+    async def action(self, user_prompt: str) -> Union[dict, AGENTACTIONS]:
         try:
             logfire.info(f"User prompt: {user_prompt}")
             action = await self.deps.client.chat.completions.create(
@@ -233,12 +233,9 @@ class Agent:
             
             action.execute(self.state, self.deps, action.command)
             
-        except asyncio.TimeoutError:
-            logfire.error(f"Timeout executing action for prompt: {user_prompt}")
-            return None
         except Exception as e:
             logfire.error(f"Error executing action: {e}")
-            return {"error": str(e)}
+            return {"error": str(e), 'error_type': type(e).__name__}
 
     def format_sections(self, data: dict) -> str:
         """Return a bullet-formatted string from a dict[str, list[str]]."""

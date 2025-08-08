@@ -204,7 +204,8 @@ async def run_agent_and_score(
                 scenario=scenario,
                 action=None,
                 total_score=None,
-                error=action['error']
+                error=action['error'],
+                error_type=action['error_type'] 
             )
             return trajectory
         else:
@@ -435,7 +436,7 @@ def main():
                 "model": args.model_name
             }
             if len(error_trajectories) > 0:
-                error_dict = Counter((t.error for t in error_trajectories))
+                error_dict = Counter([t.error for t in error_trajectories])
                 benchmark_results["benchmark_results"]["error_details"] = error_dict
 
             f.write(json.dumps(benchmark_results) + "\n")
