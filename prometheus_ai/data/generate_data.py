@@ -278,8 +278,8 @@ hf_ds_test = Dataset.from_list(test_scenarios)
 ##### DATA CLEANING FFS #####
 #############################
 
-data_train = load_dataset("mbary/hue_commands_synth_5k", split="train") 
-data_test = load_dataset("mbary/hue_commands_synth_5k", split="test")
+data_train = load_dataset("mbary/hue_commands_synth_5k_v2", split="train") 
+data_test = load_dataset("mbary/hue_commands_synth_5k_v2", split="test")
 len(data_train),len(data_test)
 
 all_scenarios = list(data_train) + list(data_test)
@@ -377,6 +377,40 @@ type(cleaned_no_bright[0])
 type(cleaned_bright[0])
 type(cleaned_no_bright)
 print(cleaned_bright[0])
+
+##### Setting all relative to 'false' if null
+cleaned_all = []
+
+for scenario in all_scenarios:
+    scen = Scenario(**scenario)
+    if scen.brightness.relative is None:
+        scen.brightness.relative = False
+
+        cleaned_all.append(scen)
+    else:
+      cleaned_all.append(scen)
+  
+len(cleaned_all), len(all_scenarios)
+type(cleaned_all[0])
+
+len([x for x in cleaned_all if x.brightness.relative is None])
+
+clean_train = [x.model_dump_json() for x in cleaned_all if x.split == "train"]
+clean_test = [x.model_dump_json() for x in cleaned_all if x.split == "test"]
+
+len(clean_train), len(clean_test)
+
+hf_ds_train = Dataset.from_list([json.loads(x) for x in clean_train])
+hf_ds_test = Dataset.from_list([json.loads(x) for x in clean_test])
+
+hf_ds_train.push_to_hub("mbary/hue_commands_synth_5k_v3", private=True, split="train")
+hf_ds_test.push_to_hub("mbary/hue_commands_synth_5k_v3", split="test")
+
+###########################################################
+len([scenario for scenario in all_scenarios if scenario['brightness']['relative'] is None])
+len([scenario for scenario in all_scenarios if scenario['brightness']['relative'] is False])
+len([scenario for scenario in all_scenarios if scenario['brightness']['relative'] is True])
+print(all_scenarios[2]['brightness']['relative'])
 
 
 cleanded_data_all = cleaned_no_bright + cleaned_bright
