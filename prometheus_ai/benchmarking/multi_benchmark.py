@@ -1,4 +1,5 @@
 import argparse
+from collections import Counter
 import os
 import sys
 import asyncio
@@ -147,6 +148,37 @@ def display_summary_table(all_summaries: List[Dict[str, Any]]):
         )
     console.print(table)
 
+    if all_summaries and "detailed_scores" in all_summaries[0]:
+        console.print("\n[bold]Detailed Scoring Breakdown by Metric:[/bold]")
+
+        metrics = list(all_summaries[0]["detailed_scores"].keys())
+        
+        for metric in metrics:
+            metric_table = Table(title=f"{metric.replace('_', ' ').title()} Accuracy")
+            metric_table.add_column("Model", style="cyan", no_wrap=True)
+            metric_table.add_column("Provider", style="magenta")
+            metric_table.add_column("Accuracy", justify="right", style="green")
+            
+            for summary in all_summaries:
+                if metric in summary["detailed_scores"]:
+                    data = summary["detailed_scores"][metric]
+                    metric_table.add_row(
+                        summary["model"],
+                        summary["provider"],
+                        f"{data:.2%}",
+                        )  
+                if "error_details" in summary:
+                    is_errors = True
+                    error_table = Table(title=f"{metric.replace('_', ' ').title()} Error Details")
+                    error_table.add_column("Error Type", style="red")
+                    error_table.add_column("Count", style="red", justify="right")
+                    for error_type, count in summary['error_details'].items():
+                        error_table.add_row(error_type, str(count))
+                              
+            console.print(metric_table)
+            # if is_errors:
+            #     console.print(error_table)
+
 def main():
 
     parser = argparse.ArgumentParser(description="Run benchmarking for Prometheus AI agent")
@@ -201,15 +233,35 @@ def main():
             if results: 
                 model, provider = model_provider
 
-                final_score_list_no_errors = [t.score for t in results if t.score is not None]
-                final_score_list_w_errors = [t.score if t.score else 0 for t in results]
+                final_score_list_no_errors = [t.total_score for t in results if t.total_score is not None]
+                final_score_list_w_errors = [t.total_score if t.total_score else 0 for t in results]
                 
                 final_score_no_errors = sum(final_score_list_no_errors) / len(final_score_list_no_errors) if final_score_list_no_errors else 0
                 final_score_with_errors = sum(final_score_list_w_errors) / len(final_score_list_w_errors) if final_score_list_w_errors else 0
                 
                 successful_trajectories = [t for t in results if not t.error]
                 error_trajectories = [t for t in results if t.error]
-                
+
+                correct_tool_final_score = sum(t.correct_tool for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+                correct_zone_final_score = sum(t.correct_zone for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+                correct_scene_final_score = sum(t.correct_scene for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+                correct_light_final_score = sum(t.correct_light for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+                correct_temperature_final_score = sum(t.correct_temperature for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+                correct_brightness_final_score = sum(t.correct_brightness for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+                correct_brightness_relative_final_score = sum(t.correct_brightness_relative for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+                correct_brightness_up_down_final_score = sum(t.correct_brightness_up_down for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+
+                detailed_scores = {
+                    "correct_tool": correct_tool_final_score,
+                    "correct_zone": correct_zone_final_score,
+                    "correct_scene": correct_scene_final_score,
+                    "correct_light": correct_light_final_score,
+                    "correct_temperature": correct_temperature_final_score,
+                    "correct_brightness": correct_brightness_final_score,
+                    "correct_brightness_relative": correct_brightness_relative_final_score,
+                    "correct_brightness_up_down": correct_brightness_up_down_final_score
+                }
+
                 summary = {
                     "model": model,
                     "provider": provider,
@@ -219,8 +271,13 @@ def main():
                     "success_rate": len(successful_trajectories) / len(results) if results else 0,
                     "score_no_errors": final_score_no_errors,
                     "score_with_errors": final_score_with_errors,
-                    "error_rate": len(error_trajectories) / len(results) if results else 0
+                    "error_rate": len(error_trajectories) / len(results) if results else 0,
+                    "detailed_scores": detailed_scores
                 }
+                if len(error_trajectories) > 0:
+                    error_dict = Counter([t.error_type for t in error_trajectories])
+                    summary["error_details"] = error_dict
+
                 all_summaries.append(summary)
 
         total_scenarios = sum(len(results) for results in all_results.values() if results)
@@ -261,7 +318,16 @@ def main():
                     detailed_results[model_key]["scenarios"][scenario_id] = {
                         "scenario": trajectory.scenario.model_dump_json(),
                         "action": trajectory.action.model_dump_json() if trajectory.action else None,
-                        "score": trajectory.score,
+                        "total_score": trajectory.total_score,
+                        "success_rate": trajectory.success_rate,
+                        "correct_tool": trajectory.correct_tool,
+                        "correct_zone": trajectory.correct_zone,
+                        "correct_scene": trajectory.correct_scene,
+                        "correct_light": trajectory.correct_light,
+                        "correct_temperature": trajectory.correct_temperature,
+                        "correct_brightness": trajectory.correct_brightness,
+                        "correct_brightness_relative": trajectory.correct_brightness_relative,
+                        "correct_brightness_up_down": trajectory.correct_brightness_up_down,
                         "error": trajectory.error
                     }
 
