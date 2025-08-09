@@ -1,0 +1,217 @@
+{
+  "metadata": {
+    "config_file": "prometheus_ai/benchmarking/configs/cfg_free_run.yaml",
+    "samples": 2,
+    "seed": 42,
+    "models": [
+      {
+        "model": "Qwen3-0.6B",
+        "provider": "local",
+        "max_concurrent_requests": 3,
+        "max_retries": 1
+      },
+      {
+        "model": "mistralai/mistral-nemo",
+        "provider": "openrouter",
+        "max_concurrent_requests": 3,
+        "max_retries": 1
+      },
+      {
+        "model": "mistralai/mistral-small-24b-instruct-2501",
+        "provider": "openrouter",
+        "max_concurrent_requests": 3,
+        "max_retries": 1
+      }
+    ],
+    "excluded_actions": [
+      "set_color",
+      "dim"
+    ],
+    "timestamp": "20250808_185708",
+    "end_time": "2025-08-08T18:57:49.941372",
+    "total_models": 3,
+    "total_scenarios": 6
+  },
+  "results": {
+    "total_models": 3,
+    "total_scenarios": 6,
+    "model_summaries": [
+      {
+        "model": "Qwen3-0.6B",
+        "provider": "local",
+        "total_scenarios": 2,
+        "successful_scenarios": 1,
+        "failed_scenarios": 1,
+        "success_rate": 0.5,
+        "score_no_errors": 0.875,
+        "score_with_errors": 0.4375,
+        "error_rate": 0.5,
+        "detailed_scores": {
+          "correct_tool": 1.0,
+          "correct_zone": 1.0,
+          "correct_scene": 1.0,
+          "correct_light": 1.0,
+          "correct_temperature": 1.0,
+          "correct_brightness": 1.0,
+          "correct_brightness_relative": 0.0,
+          "correct_brightness_up_down": 1.0
+        },
+        "error_details": {
+          "InstructorRetryException": 1
+        }
+      },
+      {
+        "model": "mistralai/mistral-nemo",
+        "provider": "openrouter",
+        "total_scenarios": 2,
+        "successful_scenarios": 0,
+        "failed_scenarios": 2,
+        "success_rate": 0.0,
+        "score_no_errors": 0,
+        "score_with_errors": 0.0,
+        "error_rate": 1.0,
+        "detailed_scores": {
+          "correct_tool": 0,
+          "correct_zone": 0,
+          "correct_scene": 0,
+          "correct_light": 0,
+          "correct_temperature": 0,
+          "correct_brightness": 0,
+          "correct_brightness_relative": 0,
+          "correct_brightness_up_down": 0
+        },
+        "error_details": {
+          "InstructorRetryException": 2
+        }
+      },
+      {
+        "model": "mistralai/mistral-small-24b-instruct-2501",
+        "provider": "openrouter",
+        "total_scenarios": 2,
+        "successful_scenarios": 0,
+        "failed_scenarios": 2,
+        "success_rate": 0.0,
+        "score_no_errors": 0,
+        "score_with_errors": 0.0,
+        "error_rate": 1.0,
+        "detailed_scores": {
+          "correct_tool": 0,
+          "correct_zone": 0,
+          "correct_scene": 0,
+          "correct_light": 0,
+          "correct_temperature": 0,
+          "correct_brightness": 0,
+          "correct_brightness_relative": 0,
+          "correct_brightness_up_down": 0
+        },
+        "error_details": {
+          "InstructorRetryException": 2
+        }
+      }
+    ]
+  },
+  "detailed_results": {
+    "Qwen3-0.6B": {
+      "scenarios": {
+        "4641": {
+          "scenario": "{\"id\":4641,\"full_command\":\"Hii Bridgette, turn off the TV1 light in the lounge\",\"wakeword_phrase\":\"Hii Bridgette\",\"action_type\":\"turn_off\",\"zone\":\"lounge\",\"scene\":null,\"light\":\"tv1\",\"temperature\":null,\"brightness\":{\"brightness\":null,\"relative\":false,\"up_down\":null},\"split\":\"test\"}",
+          "action": "{\"think\":\"The user wants to turn off the TV1 light in the lounge.\",\"action_type\":\"turn_off\",\"command\":{\"zone\":\"lounge\",\"light\":\"tv1\",\"scene\":null,\"temperature\":null,\"brightness\":{\"brightness\":null,\"relative\":null,\"up_down\":null}}}",
+          "total_score": 0.875,
+          "success_rate": 0.875,
+          "correct_tool": 1,
+          "correct_zone": 1,
+          "correct_scene": 1,
+          "correct_light": 1,
+          "correct_temperature": 1,
+          "correct_brightness": 1,
+          "correct_brightness_relative": 0,
+          "correct_brightness_up_down": 1,
+          "error": null
+        },
+        "4734": {
+          "scenario": "{\"id\":4734,\"full_command\":\"Bridgette, set the office desk light to 300K\",\"wakeword_phrase\":\"Bridgette\",\"action_type\":\"set_temperature\",\"zone\":\"office\",\"scene\":null,\"light\":\"desk\",\"temperature\":300,\"brightness\":{\"brightness\":null,\"relative\":false,\"up_down\":null},\"split\":\"test\"}",
+          "action": null,
+          "total_score": null,
+          "success_rate": null,
+          "correct_tool": null,
+          "correct_zone": null,
+          "correct_scene": null,
+          "correct_light": null,
+          "correct_temperature": null,
+          "correct_brightness": null,
+          "correct_brightness_relative": null,
+          "correct_brightness_up_down": null,
+          "error": "The output is incomplete due to a max_tokens length limit."
+        }
+      }
+    },
+    "mistralai/mistral-nemo": {
+      "scenarios": {
+        "4641": {
+          "scenario": "{\"id\":4641,\"full_command\":\"Hii Bridgette, turn off the TV1 light in the lounge\",\"wakeword_phrase\":\"Hii Bridgette\",\"action_type\":\"turn_off\",\"zone\":\"lounge\",\"scene\":null,\"light\":\"tv1\",\"temperature\":null,\"brightness\":{\"brightness\":null,\"relative\":false,\"up_down\":null},\"split\":\"test\"}",
+          "action": null,
+          "total_score": null,
+          "success_rate": null,
+          "correct_tool": null,
+          "correct_zone": null,
+          "correct_scene": null,
+          "correct_light": null,
+          "correct_temperature": null,
+          "correct_brightness": null,
+          "correct_brightness_relative": null,
+          "correct_brightness_up_down": null,
+          "error": "Failed to validate model Response: 9 validation errors for Response\ncontent.turn_on.action_type\n  Input should be 'turn_on' [type=literal_error, input_value='turn_off', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_on.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.turn_off.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_scene.action_type\n  Input should be 'set_scene' [type=literal_error, input_value='turn_off', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_scene.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_brightness.action_type\n  Input should be 'set_brightness' [type=literal_error, input_value='turn_off', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_brightness.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_temperature.action_type\n  Input should be 'set_temperature' [type=literal_error, input_value='turn_off', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_temperature.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
+        },
+        "4734": {
+          "scenario": "{\"id\":4734,\"full_command\":\"Bridgette, set the office desk light to 300K\",\"wakeword_phrase\":\"Bridgette\",\"action_type\":\"set_temperature\",\"zone\":\"office\",\"scene\":null,\"light\":\"desk\",\"temperature\":300,\"brightness\":{\"brightness\":null,\"relative\":false,\"up_down\":null},\"split\":\"test\"}",
+          "action": null,
+          "total_score": null,
+          "success_rate": null,
+          "correct_tool": null,
+          "correct_zone": null,
+          "correct_scene": null,
+          "correct_light": null,
+          "correct_temperature": null,
+          "correct_brightness": null,
+          "correct_brightness_relative": null,
+          "correct_brightness_up_down": null,
+          "error": "Failed to validate model Response: 9 validation errors for Response\ncontent.turn_on.action_type\n  Input should be 'turn_on' [type=literal_error, input_value='set_temperature', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_on.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.turn_off.action_type\n  Input should be 'turn_off' [type=literal_error, input_value='set_temperature', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_off.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_scene.action_type\n  Input should be 'set_scene' [type=literal_error, input_value='set_temperature', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_scene.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_brightness.action_type\n  Input should be 'set_brightness' [type=literal_error, input_value='set_temperature', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_brightness.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_temperature.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
+        }
+      }
+    },
+    "mistralai/mistral-small-24b-instruct-2501": {
+      "scenarios": {
+        "4641": {
+          "scenario": "{\"id\":4641,\"full_command\":\"Hii Bridgette, turn off the TV1 light in the lounge\",\"wakeword_phrase\":\"Hii Bridgette\",\"action_type\":\"turn_off\",\"zone\":\"lounge\",\"scene\":null,\"light\":\"tv1\",\"temperature\":null,\"brightness\":{\"brightness\":null,\"relative\":false,\"up_down\":null},\"split\":\"test\"}",
+          "action": null,
+          "total_score": null,
+          "success_rate": null,
+          "correct_tool": null,
+          "correct_zone": null,
+          "correct_scene": null,
+          "correct_light": null,
+          "correct_temperature": null,
+          "correct_brightness": null,
+          "correct_brightness_relative": null,
+          "correct_brightness_up_down": null,
+          "error": "Failed to validate model Response: 9 validation errors for Response\ncontent.turn_on.action_type\n  Input should be 'turn_on' [type=literal_error, input_value='turn_off', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_on.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.turn_off.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_scene.action_type\n  Input should be 'set_scene' [type=literal_error, input_value='turn_off', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_scene.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_brightness.action_type\n  Input should be 'set_brightness' [type=literal_error, input_value='turn_off', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_brightness.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_temperature.action_type\n  Input should be 'set_temperature' [type=literal_error, input_value='turn_off', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_temperature.command.brightness\n  Field required [type=missing, input_value={'zone': 'lounge', 'light': 'tv1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
+        },
+        "4734": {
+          "scenario": "{\"id\":4734,\"full_command\":\"Bridgette, set the office desk light to 300K\",\"wakeword_phrase\":\"Bridgette\",\"action_type\":\"set_temperature\",\"zone\":\"office\",\"scene\":null,\"light\":\"desk\",\"temperature\":300,\"brightness\":{\"brightness\":null,\"relative\":false,\"up_down\":null},\"split\":\"test\"}",
+          "action": null,
+          "total_score": null,
+          "success_rate": null,
+          "correct_tool": null,
+          "correct_zone": null,
+          "correct_scene": null,
+          "correct_light": null,
+          "correct_temperature": null,
+          "correct_brightness": null,
+          "correct_brightness_relative": null,
+          "correct_brightness_up_down": null,
+          "error": "Failed to validate model Response: 9 validation errors for Response\ncontent.turn_on.action_type\n  Input should be 'turn_on' [type=literal_error, input_value='set_temperature', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_on.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.turn_off.action_type\n  Input should be 'turn_off' [type=literal_error, input_value='set_temperature', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.turn_off.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_scene.action_type\n  Input should be 'set_scene' [type=literal_error, input_value='set_temperature', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_scene.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_brightness.action_type\n  Input should be 'set_brightness' [type=literal_error, input_value='set_temperature', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ncontent.set_brightness.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\ncontent.set_temperature.command.brightness\n  Field required [type=missing, input_value={'zone': 'office', 'light...sk', 'temperature': 300}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
+        }
+      }
+    }
+  }
+}
