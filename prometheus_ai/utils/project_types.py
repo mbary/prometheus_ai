@@ -23,7 +23,7 @@ class DependenciesManager(CustomBaseModel):
     bridge: Optional[Bridgette] = Field(description="The Bridgette instance used for interacting with the Hue ecosystem.",)
     model: str = Field(description="The model used for LLM interactions.",default=None)
     benchmarking: bool = Field(default=False, description="Whether the agent is running in benchmarking mode. If True, the agent will return the action instead of executing it.")
-
+    max_tokens: int = Field(description="The maximum number of tokens for LLM responses.")
 
 class Brightness(BaseModel):
     brightness: Union[int,float, None] = Field(description="""The user's desired brightness level.
@@ -34,9 +34,12 @@ class Brightness(BaseModel):
                                          ge=0, le=100,
                                          default=None)
     
-    relative: Union[bool, None] = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", 
-                                        examples=[True, False],
-                                        default=None)
+    # relative: Union[bool, None] = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", 
+    #                                     examples=[True, False],
+    #                                     default=None)
+
+    relative: bool = Field(description="Whether the brightness level is changed in absolute or relative terms. 'Change brightness by 20'-> relative terms; 'Set brightness to 30'->absolute terms", 
+                                        examples=[True, False])
 
     up_down: Union[Literal['up','down'], None] = Field(description="Whether the brightness is increased or decreased. 'Increase brightness by 20'-> up; 'Decrease brightness by 30'-> down",
                                                        default=None,)

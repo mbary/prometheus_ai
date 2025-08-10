@@ -131,7 +131,8 @@ class Agent:
                  max_retries: int = 3,
                  model: str = None,
                  benchmarking: bool = False,
-                 mode: instructor.Mode = None) -> None:
+                 mode: instructor.Mode = None,
+                 max_tokens: int = 200) -> None:
 
         PROVIDERS = {
             "local": {
@@ -206,7 +207,8 @@ class Agent:
                                                             max_retries=max_retries,
                                                             bridge=self.bridge,
                                                             benchmarking=benchmarking,
-                                                            model=model)
+                                                            model=model,
+                                                            max_tokens=max_tokens)
 
         self.SYS_PROMPT = self._build_sys_prompt(self.deps, self.state)
         logfire.instrument_openai()
@@ -226,7 +228,16 @@ class Agent:
                         {"role": "user", "content": user_prompt}
                     ],
                     max_retries=self.deps.max_retries,
-                    temperature=0.1
+                    temperature=0.2,
+                    max_tokens=self.deps.max_tokens,
+                    presence_penalty=1.5,
+                    top_p=0.9,
+                    extra_body={
+                                "repetition_penalty": 1.05,
+                                "top_k": 20, 
+                                # "chat_template_kwargs": {"enable_thinking": False},
+                                "min_p":0
+                                }
                     )
             if self.deps.benchmarking:
                 return action
@@ -272,7 +283,7 @@ class Agent:
         - set_temperature - Sets the temperature of the selected lights or zone
 
         #Each tool requires:
-        - thinking: Your reasoning for selecting this action
+        - think: Your reasoning for selecting this action
         - action_type: The exact name of the selected tool
         - command: A structured command containing the details of the action to be performed.
 
