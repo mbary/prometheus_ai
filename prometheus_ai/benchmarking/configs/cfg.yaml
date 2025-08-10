@@ -1,0 +1,39 @@
+global:
+  seed: 42
+  samples: 25
+  skip_actions:
+    - set_color
+    - dim
+models:
+  - model: openai/gpt-oss-120b
+    provider: openrouter
+    max_concurrent_requests: 3
+    max_retries: 1
+  - model: openai/gpt-oss-20b
+    provider: openrouter
+    max_concurrent_requests: 3
+    max_retries: 1
+  - model: openrouter/horizon-beta
+    provider: openrouter
+    max_concurrent_requests: 3
+    max_retries: 1
+  - model: google/gemini-2.5-flash-lite
+    provider: openrouter
+    max_concurrent_requests: 3
+    max_retries: 1
+  - model: google/gemini-2.5-flash-lite-preview-06-17
+    provider: openrouter
+    max_concurrent_requests: 3
+    max_retries: 1
+  - model: qwen/qwen3-32b
+    provider: openrouter
+    max_concurrent_requests: 3
+    max_retries: 1
+  - model: openai/gpt-4.1-nano
+    provider: openrouter
+    max_concurrent_requests: 3
+    max_retries: 1
+  - model: Qwen3-0.6B
+    provider: local
+    max_concurrent_requests: 3
+    max_retries: 1

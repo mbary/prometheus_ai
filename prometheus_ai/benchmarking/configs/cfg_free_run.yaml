@@ -1,0 +1,31 @@
+global:
+  seed: 42
+  samples: 2
+  skip_actions:
+    - set_color
+    - dim
+models:
+ - model: Qwen3-0.6B
+   provider: local
+   max_concurrent_requests: 3
+   max_retries: 1
+#  - model: openrouter/horizon-beta
+#    provider: openrouter
+#    max_concurrent_requests: 3
+#    max_retries: 1
+#  - model: mistralai/mistral-small-3.2-24b-instruct:free
+#    provider: openrouter
+#    max_concurrent_requests: 3
+  #  max_retries: 1
+ - model: mistralai/mistral-nemo
+   provider: openrouter
+   max_concurrent_requests: 3
+   max_retries: 1
+ - model: mistralai/mistral-small-24b-instruct-2501
+   provider: openrouter
+   max_concurrent_requests: 3
+   max_retries: 1
+#  - model: mistralai/mistral-small-3.1-24b-instruct:free
+#    provider: openrouter
+#    max_concurrent_requests: 3
+#    max_retries: 1

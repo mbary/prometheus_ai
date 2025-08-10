@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# User defined
+*.wav
+.env
+*.mp3
+*.m4a
+# *.yaml
+# *.yml
