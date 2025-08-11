@@ -93,7 +93,7 @@ Selected models:
 Initially, the models' performance varied significantly.<br>
 Contrary to what one might expect, smaller models (especially the Qwen3 release) performed much better than their larger counterparts (successfully parsing the commands) with a 78.4% vs 22.8% success rate (prior to finetuning the parameters).<br>
 
-Turns out that all models perform significatly better with the following changes:
+The command parsing performance can be improved by finetuning the following parameters:
 * thinking_mode: disabled
 * temperature: 0.2-0.7 
 * presence_penalty: 1.5-1.9 
@@ -102,7 +102,14 @@ Turns out that all models perform significatly better with the following changes
 * repetition_penalty: 1.05
 
 
-However, what I am unable to explain is the reason why the larger 4B models, perform so poorly when it comes to parsing structured outputs, in comparison to their smaller versions.
+
+### Qwen3 vs Qwen2.5
+It comes as no suprise that the newer release, Qwen3, outperforms the Qwen2.5 family.<br>
+Though, due to their varying sizes (Qwen3 counterparts are slightly larger 0.5B vs 0.6B; 1.5B vs 1.7B), both releases cannot be compared 1:1.<br>
+Nonetheless, the Qwen3 models have shown to be more efficient in parsing commands and producing accurate outputs.<br>
+After finetuning the parameters, tehy were better in both delivering successfull runs as wall as extracting the correct information from the commands.<br>
+
+However, what I am unable to explain is the reason why the larger (4B and 3B) models, perform so poorly when it comes to parsing structured outputs, in comparison to their smaller versions.
 Despite setting similar parameters (and experimenting with different values), the 4B models (regardless whether quantized or not) consistently underperform the smaller 0.6B and 1.7B models.
 
 I suspect that larger models might require more guidance within the system prompts themselves,<br>
@@ -110,9 +117,6 @@ with a strictly defined template for the output, to ensure they produce the expe
 Though, theoretically, this is what the Instructor package is supposed to do, inject the tool JSON<br>
 schema into the system prompt.
 
-
-### Qwen3 vs Qwen2.5
-It comes as no suprise that the newer release, Qwen3, significantly outperforms the Qwen2.5 family.
 
 #### Qwen2.5-0.5B-Instruct
 ##### Initial Run
@@ -134,25 +138,7 @@ It comes as no suprise that the newer release, Qwen3, significantly outperforms 
 
 
 ## Qwen3 Model Family
-Initially, the models' performance varied significantly.<br>
-Contrary to what one might expect, the 0.6B model performed much better than the 1.7B model (in correctly parsing the tool calls.) with a 78.4% vs 22.8% success rate.<br>
 
-Turns out that both models perform significatly better with the following changes:
-* thinking_mode: disabled
-* temperature: 0.7 (for 1.7B model) or 0.2 (for 0.6B model)
-* presence_penalty: 1.5 
-* top_p: 0.9 
-* top_k: 20
-* repetition_penalty: 1.05
-
-
-However, what I am unable to explain is the reason why the larger 4B models, perform so poorly when it comes to parsing structured outputs, in comparison to their smaller versions.
-Despite setting similar parameters (and experimenting with different values), the 4B models (regardless whether quantized or not) consistently underperform the smaller 0.6B and 1.7B models.
-
-I suspect that larger models might require more guidance within the system prompts themselves,<br>
-with a strictly defined template for the output, to ensure they produce the expected results.<br>
-Though, theoretically, this is what the Instructor package is supposed to do, inject the tool JSON<br>
-schema into the system prompt.
 #### Qwen3-0.6B
 ##### Initial Run
 <img src="img/qwen3_06b_bad.png" alt="Qwen3-0.6B Errors" width="800">
@@ -196,6 +182,8 @@ However, after disabling thinking-mode, increasing the temperature to 0.7, and s
 
 
 ## Larger Model Results
+Large models were used for benchmarking to create a sort of baseline to compare the results with vastly smaller models.<br>
+As predicted, the all performed amazingly well, with very few parsing errors and a high success rate (Mistral models being the only outliers, they, however were also relatively small with 24B and 12B parameters).<br>
 
 ## GPT Model Family
 Unsurprisingly, the GPT models perform very well with this simple task (though do bear in mind they're benchmarked on a smaller sample size).
