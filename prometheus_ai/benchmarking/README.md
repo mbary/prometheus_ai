@@ -2,6 +2,34 @@
 
 The file describes the results of benchmarking attempts against a, synthetically generated, [dataset](https://huggingface.co/datasets/mbary/hue_commands_synth_5k_v3) consisting of series of commands one would use to operate their smart-home light system.
 
+To generate the benchmarking results, I used the `benchmarking.py`.<br>
+It is possible to compare multiple models against each other, by using the `multi_benchmark.py` script, however,<br>
+the granular results (indidividual) scoring results are not displayed as nicely as in the original script, hence why it was not used.
+
+
+In case one wants to use the`multi_benchmark.py` script, however, all they need is a config.yml file with details of each model to be tested.<br>
+Example config.yml file:
+```yaml
+global:
+  seed: 42
+  samples: 2
+  skip_actions:
+    - set_color
+    - dim
+models:
+ - model: Qwen3-0.6B
+   provider: local
+   max_concurrent_requests: 3
+   max_retries: 1
+ - model: mistralai/mistral-nemo
+   provider: openrouter
+   max_concurrent_requests: 3
+   max_retries: 1
+```
+
+The 'global' parameters are shared across all models and allow for comparable results.<br>
+Model specific parameters, such as provider or concurrent requests, are defined under each model.<br>
+
 ## Methodology
 
 The benchmarking is performed on the test split of the synthetic dataset.<br>
