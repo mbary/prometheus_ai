@@ -25,6 +25,13 @@ So I might RL it so that it understands commands in Polish language.
 - **Scene Control**: Apply predefined scenes to zones
 - **Individual Light Control**: Target specific lights within zones
 
+## Planned Features
+
+**Voice Transcription**:<br>
+I am planning on implementing real-time voice transcription with [Faster Whisper](https://github.com/speaches-ai/speaches) by speaches-ai.<br>
+VLLM unfortunately does not support neither streaming transcription nor timestamps (else I could just stich the results together using some overlapping window), hence why I must rely on third-party implementations.<br>
+Implementing this will give a real assistant-like experience with (hopefully) minimal latency.
+
 
 ## Architecture
 
@@ -57,7 +64,8 @@ Comprehensive evaluation framework:
 
 ## Benchmarking
 
-Prometheus AI includes a comprehensive benchmarking system to evaluate model performance.
+Prometheus AI includes a comprehensive benchmarking system to evaluate model performance.<br>
+More details on the benchmarking itself can be found in the [benchmarking directory](./prometheus_ai/benchmarking).
 
 ### Evaluation Metrics
 - **Tool Selection Accuracy**: Correct action chosen
@@ -65,16 +73,9 @@ Prometheus AI includes a comprehensive benchmarking system to evaluate model per
 - **Parameter Extraction**: Accurate brightness, temperature, scene values
 - **Error Rate**: Handling of malformed or impossible commands
 
-### Model Performance Results
-Recent benchmarking shows:
-- **Qwen3-1.7B**: 99.8% success rate (optimized)
-- **Qwen3-0.6B**: 78.4% success rate
-
-*Note: Only local Qwen models have been comprehensively benchmarked. Other providers mentioned in configuration examples have not been tested yet.*
-
 ## Dataset
 
-The project uses a synthetic dataset of 5,000+ natural language lighting commands:
+The project uses a synthetic dataset of almost 5,000 natural language lighting commands:
 - **Source**: [mbary/hue_commands_synth_5k_v3](https://huggingface.co/datasets/mbary/hue_commands_synth_5k_v3)
 - **Structure**: Wake word phrase + action + parameters
 - **Actions**: All supported lighting operations
@@ -88,18 +89,10 @@ The project uses a synthetic dataset of 5,000+ natural language lighting command
 "Bridgette, set temperature to 250K in all zones"
 ```
 
-## Research & Development
-
-### Model Optimization
-- **Parameter Tuning**: Optimized temperature, top_p, presence_penalty
-- **Prompt Engineering**: Structured system prompts for consistent outputs
-- **Mode Selection**: JSON vs Tools mode based on provider capabilities
-
-### Future Enhancements
-- **Speech Recognition**: Whisper integration for voice commands
-- **Wake Word Detection**: Continuous listening for "Hey Bridgette"
-- **Multi-Language Support**: Commands in multiple languages
-- **Advanced Scenes**: Dynamic scene creation and modification
+The dataset is split into train/test (4000/981) and will be used to finetune a model for better performance on the task.<br>
+The finetuning will be done with the help of either the [Verifiers](https://github.com/willccbb/verifiers/) or [ART](https://github.com/OpenPipe/ART) frameworks for a comprehensive GRPO training pipeline.<br>
+It is likely that to do so, I might have to re-write the package ever so slightly, to make it compatible with the frameworks.<br>
+I am yet to decide which model it is going to be, but it will liklely be one of the smaller Qwen models, allowing me to potrntialyl run the pipeline on my PC.<br>
 
 ### Code Structure
 ```

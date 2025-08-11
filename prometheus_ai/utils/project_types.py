@@ -24,6 +24,7 @@ class DependenciesManager(CustomBaseModel):
     model: str = Field(description="The model used for LLM interactions.",default=None)
     benchmarking: bool = Field(default=False, description="Whether the agent is running in benchmarking mode. If True, the agent will return the action instead of executing it.")
     max_tokens: int = Field(description="The maximum number of tokens for LLM responses.")
+    mode: str
 
 class Brightness(BaseModel):
     brightness: Union[int,float, None] = Field(description="""The user's desired brightness level.

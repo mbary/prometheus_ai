@@ -197,6 +197,7 @@ async def run_agent_and_score(
     )->List[Trajectory]:
     
     async with semaphore:
+        # await asyncio.sleep(4)
         action = await agent.action(scenario.full_command)
         if isinstance(action, dict) and 'error' in action:
             logfire.error(f"Error in action: {action['error']}\nScenario: {scenario.full_command}")
@@ -319,6 +320,8 @@ def display_summary_table(summary_dict: Dict):
                 error_table.add_row(error_type, str(count))
             console.print(error_table)
 
+# def parse_kv_args(kv_str:)
+
 def main():
     """Main function that coordinates the benchmarking process with command-line arguments."""
     parser = argparse.ArgumentParser(description="Run benchmarking for Prometheus AI agent")
@@ -337,6 +340,10 @@ def main():
                         help="Provider for the model API (default: local)")
     parser.add_argument("--mode", type=str, default=None,
                         help="Instructor mode to use (e.g., TOOLS, JSON, ANTHROPIC_TOOLS) (default: None - uses provider default)")
+    parser.add_argument("--extras", type=str, default=None,
+                        help="Additional key-value pairs for configuration. For controlling parameters such as, presence_penalty, top_p, extra_body:{repetition_penalty, top_k, min_p}")
+    parser.add_argument("--temperature", type=float, default=None, 
+                        help="Temperature for the model")
 
     args = parser.parse_args()
 

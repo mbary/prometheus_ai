@@ -2,6 +2,34 @@
 
 The file describes the results of benchmarking attempts against a, synthetically generated, [dataset](https://huggingface.co/datasets/mbary/hue_commands_synth_5k_v3) consisting of series of commands one would use to operate their smart-home light system.
 
+To generate the benchmarking results, I used the `benchmarking.py`.<br>
+It is possible to compare multiple models against each other, by using the `multi_benchmark.py` script, however,<br>
+the granular results (indidividual) scoring results are not displayed as nicely as in the original script, hence why it was not used.
+
+
+In case one wants to use the`multi_benchmark.py` script, however, all they need is a config.yml file with details of each model to be tested.<br>
+Example config.yml file:
+```yaml
+global:
+  seed: 42
+  samples: 2
+  skip_actions:
+    - set_color
+    - dim
+models:
+ - model: Qwen3-0.6B
+   provider: local
+   max_concurrent_requests: 3
+   max_retries: 1
+ - model: mistralai/mistral-nemo
+   provider: openrouter
+   max_concurrent_requests: 3
+   max_retries: 1
+```
+
+The 'global' parameters are shared across all models and allow for comparable results.<br>
+Model specific parameters, such as provider or concurrent requests, are defined under each model.<br>
+
 ## Methodology
 
 The benchmarking is performed on the test split of the synthetic dataset.<br>
@@ -88,81 +116,142 @@ Selected models:
 * [Qwen3-4B-AWQ](https://huggingface.co/Qwen/Qwen3-4B-AWQ)
 * [Qwen3-4B-FP8](https://huggingface.co/Qwen/Qwen3-4B-FP8)
 
-### Qwen2.5-0.5B-Instruct
-<img src="img/qwen2_5_0_5b.png" alt="Qwen2.5-0.5B-Instruct" width="600">
 
-
-### Qwen2.5-1.5B-Instruct
-<img src="img/qwen2_5_1_5b.png" alt="Qwen2.5-1.5B-Instruct" width="600">
-
-### Qwen2.5-3B-Instruct
-##### Initial Run
-<img src="img/qwen2_5_3b_bad.png" alt="Qwen2.5-3B-Instruct" width="600">
-
-##### Improved Run
-<img src="img/qwen2_5_3b_good.png" alt="Qwen2.5-3B-Instruct Improved" width="600">
-
-
-## Qwen3 Model Family
+## Qwen Models
 Initially, the models' performance varied significantly.<br>
-Contrary to what one might expect, the 0.6B model performed much better than the 1.7B model (in correctly parsing the tool calls.) with a 78.4% vs 22.8% success rate.<br>
+Contrary to what one might expect, smaller models (especially the Qwen3 release) performed much better than their larger counterparts (successfully parsing the commands) with a 78.4% vs 22.8% success rate (prior to finetuning the parameters).<br>
 
-Turns out that both models perform significatly better with the following changes:
+The command parsing performance can be improved by finetuning the following parameters:
 * thinking_mode: disabled
-* temperature: 0.7 (for 1.7B model) or 0.2 (for 0.6B model)
-* presence_penalty: 1.5 
-* top_p: 0.9 
+* temperature: 0.2-0.7 
+* presence_penalty: 1.5-1.9 
+* top_p: 0.7-0.9 
 * top_k: 20
 * repetition_penalty: 1.05
 
 
-However, what I am unable to explain is the reason why the larger 4B models, perform so poorly when it comes to parsing structured outputs, in comparison to their smaller versions.
+
+### Qwen3 vs Qwen2.5
+It comes as no suprise that the newer release, Qwen3, outperforms the Qwen2.5 family.<br>
+Though, due to their varying sizes (Qwen3 counterparts are slightly larger 0.5B vs 0.6B; 1.5B vs 1.7B), both releases cannot be compared 1:1.<br>
+Nonetheless, the Qwen3 models have shown to be more efficient in parsing commands and producing accurate outputs.<br>
+After finetuning the parameters, tehy were better in both delivering successfull runs as wall as extracting the correct information from the commands.<br>
+
+However, what I am unable to explain is the reason why the larger (4B and 3B) models, perform so poorly when it comes to parsing structured outputs, in comparison to their smaller versions.
 Despite setting similar parameters (and experimenting with different values), the 4B models (regardless whether quantized or not) consistently underperform the smaller 0.6B and 1.7B models.
 
 I suspect that larger models might require more guidance within the system prompts themselves,<br>
 with a strictly defined template for the output, to ensure they produce the expected results.<br>
 Though, theoretically, this is what the Instructor package is supposed to do, inject the tool JSON<br>
 schema into the system prompt.
-### Qwen3-0.6B
+
+
+#### Qwen2.5-0.5B-Instruct
 ##### Initial Run
-<img src="img/qwen3_06b_bad.png" alt="Qwen3-0.6B Errors" width="600">
+<img src="img/qwen2_5_0_5b_initial.png" alt="Qwen2.5-0.5B-Instruct" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_06b_good.png" alt="Qwen3-0.6B Improved" width="600">
+<img src="img/qwen2_5_0_5b_improved.png" alt="Qwen2.5-0.5B-Instruct Improved" width="800"> 
 
-### Qwen3-1.7B
+
+### Qwen2.5-1.5B-Instruct
+<img src="img/qwen2_5_1_5b.png" alt="Qwen2.5-1.5B-Instruct" width="800">
+
+#### Qwen2.5-3B-Instruct
+##### Initial Run
+<img src="img/qwen2_5_3b_bad.png" alt="Qwen2.5-3B-Instruct" width="800">
+
+##### Improved Run
+<img src="img/qwen2_5_3b_good.png" alt="Qwen2.5-3B-Instruct Improved" width="800">
+
+
+## Qwen3 Model Family
+
+#### Qwen3-0.6B
+##### Initial Run
+<img src="img/qwen3_06b_bad.png" alt="Qwen3-0.6B Errors" width="800">
+
+##### Improved Run
+<img src="img/qwen3_06b_good.png" alt="Qwen3-0.6B Improved" width="800">
+
+#### Qwen3-1.7B
 Initially, the 1.7B model's performance was atrocious, with it generating tens of thousands of empty lines, and failing to produce any meaningful output.<br>
 However, after disabling thinking-mode, increasing the temperature to 0.7, and setting the presence penalty to 1.5, the model's performance improved significantly, reaching a whooping 99.8% success rate!.<br>
 ##### Initial Run
 
-<img src="img/qwen3_1_7b_bad.png" alt="Qwen3-1.7B" width="600">
+<img src="img/qwen3_1_7b_bad.png" alt="Qwen3-1.7B" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_1_7b_good.png" alt="Qwen3-1.7B Improved" width="600">
+<img src="img/qwen3_1_7b_good.png" alt="Qwen3-1.7B Improved" width="800">
 
 
-### Qwen3-4B
+#### Qwen3-4B
 ##### Initial Run
-<img src="img/qwen3_4b_bad.png" alt="Qwen3-4B Errors" width="600">
+<img src="img/qwen3_4b_bad.png" alt="Qwen3-4B Errors" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_4b_good.png" alt="Qwen3-4B Improved" width="600">
+<img src="img/qwen3_4b_good.png" alt="Qwen3-4B Improved" width="800">
 
-### Qwen3-4B-AWQ
+#### Qwen3-4B-AWQ
 ##### Initial Run
-<img src="img/qwen3_4b_AWQ_bad.png" alt="Qwen3-4B Errors" width="600">
+<img src="img/qwen3_4b_AWQ_bad.png" alt="Qwen3-4B Errors" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_4b_AWQ_good.png" alt="Qwen3-4B Improved" width="600"> 
+<img src="img/qwen3_4b_AWQ_good.png" alt="Qwen3-4B Improved" width="800"> 
 
 
-### Qwen3-4B-FP8
+#### Qwen3-4B-FP8
 ##### Initial Run
-<img src="img/qwen3_4b_FP8_bad.png" alt="Qwen3-4B Errors" width="600">
+<img src="img/qwen3_4b_FP8_bad.png" alt="Qwen3-4B Errors" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_4b_FP8_good.png" alt="Qwen3-4B Improved" width="600">
+<img src="img/qwen3_4b_FP8_good.png" alt="Qwen3-4B Improved" width="800">
 
 
 
 ## Larger Model Results
+Large models were used for benchmarking to create a sort of baseline to compare the results with vastly smaller models.<br>
+As predicted, the all performed amazingly well, with very few parsing errors and a high success rate (Mistral models being the only outliers, they, however were also relatively small with 24B and 12B parameters).<br>
+
+## GPT Model Family
+Unsurprisingly, the GPT models perform very well with this simple task (though do bear in mind they're benchmarked on a smaller sample size).
+By using mode.TOOLS_STRICT, we're achieving 93-100% success rate, and high scores between from 0.89 to 0.98 (without errors).<br>
+#### GPT-4.1-nano
+<img src="img/gpt4_1_nano.png" alt="GPT-4.1-nano" width="800">
+
+#### GPT-4.1-mini
+<img src="img/gpt4_1_mini.png" alt="GPT-4.1-mini" width="800">
+
+#### GPT-5-nano
+<img src="img/gpt5_nano.png" alt="GPT-5-nano" width="800">
+
+#### GPT-5-mini
+<img src="img/gpt5_mini.png" alt="GPT-5-mini" width="800">
+
+
+## Claude Model Family
+
+#### Claude3-haiku
+<img src="img/claude3_haiku.png" alt="Claude3-haiku" width="800">
+
+#### Claude3.5-haiku
+<img src="img/claude3_5_haiku.png" alt="Claude3.5-haiku" width="800">
+
+#### Claude3.5-sonnet (v1)
+<img src="img/claude3_5_sonnet.png" alt="Claude3.5-sonnet" width="800">
+
+
+## MoonshotAI Kimi K2
+<img src="img/kimi_k2.png" alt="MoonshotAI Kimi K2" width="800">
+
+## Mistral Model Family
+
+#### Mistral Small 3.2 24B Instruct
+
+<img src="img/mistral_small_3_2_24b.png" alt="Mistral Small 3.2 24B Instruct" width="800">
+
+#### Mistral Nemo
+<img src="img/mistral_nemo.png" alt="Mistral Nemo" width="800">
+
+## Gemini 2.5 Flash
+<img src="img/gemini_2_5_flash.png" alt="Gemini 2.5 Flash" width="800">
