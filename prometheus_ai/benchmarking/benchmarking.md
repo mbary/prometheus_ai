@@ -91,13 +91,13 @@ Selected models:
 
 ## Qwen Models
 Initially, the models' performance varied significantly.<br>
-Contrary to what one might expect, smaller models (especially the Qwen3 release) performed much better than their larger counterparts (in correctly parsing the tool calls) with a 78.4% vs 22.8% success rate (successfully completing a call).<br>
+Contrary to what one might expect, smaller models (especially the Qwen3 release) performed much better than their larger counterparts (successfully parsing the commands) with a 78.4% vs 22.8% success rate (prior to finetuning the parameters).<br>
 
-Turns out that both models perform significatly better with the following changes:
+Turns out that all models perform significatly better with the following changes:
 * thinking_mode: disabled
-* temperature: 0.7 (for 1.7B model) or 0.2 (for 0.6B model)
-* presence_penalty: 1.5 
-* top_p: 0.9 
+* temperature: 0.2-0.7 
+* presence_penalty: 1.5-1.9 
+* top_p: 0.7-0.9 
 * top_k: 20
 * repetition_penalty: 1.05
 
@@ -109,6 +109,10 @@ I suspect that larger models might require more guidance within the system promp
 with a strictly defined template for the output, to ensure they produce the expected results.<br>
 Though, theoretically, this is what the Instructor package is supposed to do, inject the tool JSON<br>
 schema into the system prompt.
+
+
+### Qwen3 vs Qwen2.5
+It comes as no suprise that the newer release, Qwen3, significantly outperforms the Qwen2.5 family.
 
 #### Qwen2.5-0.5B-Instruct
 ##### Initial Run
