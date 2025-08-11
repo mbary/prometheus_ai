@@ -116,21 +116,21 @@ It comes as no suprise that the newer release, Qwen3, significantly outperforms 
 
 #### Qwen2.5-0.5B-Instruct
 ##### Initial Run
-<img src="img/qwen2_5_0_5b_initial.png" alt="Qwen2.5-0.5B-Instruct" width="600">
+<img src="img/qwen2_5_0_5b_initial.png" alt="Qwen2.5-0.5B-Instruct" width="800">
 
 ##### Improved Run
-<img src="img/qwen2_5_0_5b_improved.png" alt="Qwen2.5-0.5B-Instruct Improved" width="600"> 
+<img src="img/qwen2_5_0_5b_improved.png" alt="Qwen2.5-0.5B-Instruct Improved" width="800"> 
 
 
 ### Qwen2.5-1.5B-Instruct
-<img src="img/qwen2_5_1_5b.png" alt="Qwen2.5-1.5B-Instruct" width="600">
+<img src="img/qwen2_5_1_5b.png" alt="Qwen2.5-1.5B-Instruct" width="800">
 
 #### Qwen2.5-3B-Instruct
 ##### Initial Run
-<img src="img/qwen2_5_3b_bad.png" alt="Qwen2.5-3B-Instruct" width="600">
+<img src="img/qwen2_5_3b_bad.png" alt="Qwen2.5-3B-Instruct" width="800">
 
 ##### Improved Run
-<img src="img/qwen2_5_3b_good.png" alt="Qwen2.5-3B-Instruct Improved" width="600">
+<img src="img/qwen2_5_3b_good.png" alt="Qwen2.5-3B-Instruct Improved" width="800">
 
 
 ## Qwen3 Model Family
@@ -155,43 +155,43 @@ Though, theoretically, this is what the Instructor package is supposed to do, in
 schema into the system prompt.
 #### Qwen3-0.6B
 ##### Initial Run
-<img src="img/qwen3_06b_bad.png" alt="Qwen3-0.6B Errors" width="600">
+<img src="img/qwen3_06b_bad.png" alt="Qwen3-0.6B Errors" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_06b_good.png" alt="Qwen3-0.6B Improved" width="600">
+<img src="img/qwen3_06b_good.png" alt="Qwen3-0.6B Improved" width="800">
 
 #### Qwen3-1.7B
 Initially, the 1.7B model's performance was atrocious, with it generating tens of thousands of empty lines, and failing to produce any meaningful output.<br>
 However, after disabling thinking-mode, increasing the temperature to 0.7, and setting the presence penalty to 1.5, the model's performance improved significantly, reaching a whooping 99.8% success rate!.<br>
 ##### Initial Run
 
-<img src="img/qwen3_1_7b_bad.png" alt="Qwen3-1.7B" width="600">
+<img src="img/qwen3_1_7b_bad.png" alt="Qwen3-1.7B" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_1_7b_good.png" alt="Qwen3-1.7B Improved" width="600">
+<img src="img/qwen3_1_7b_good.png" alt="Qwen3-1.7B Improved" width="800">
 
 
 #### Qwen3-4B
 ##### Initial Run
-<img src="img/qwen3_4b_bad.png" alt="Qwen3-4B Errors" width="600">
+<img src="img/qwen3_4b_bad.png" alt="Qwen3-4B Errors" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_4b_good.png" alt="Qwen3-4B Improved" width="600">
+<img src="img/qwen3_4b_good.png" alt="Qwen3-4B Improved" width="800">
 
 #### Qwen3-4B-AWQ
 ##### Initial Run
-<img src="img/qwen3_4b_AWQ_bad.png" alt="Qwen3-4B Errors" width="600">
+<img src="img/qwen3_4b_AWQ_bad.png" alt="Qwen3-4B Errors" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_4b_AWQ_good.png" alt="Qwen3-4B Improved" width="600"> 
+<img src="img/qwen3_4b_AWQ_good.png" alt="Qwen3-4B Improved" width="800"> 
 
 
 #### Qwen3-4B-FP8
 ##### Initial Run
-<img src="img/qwen3_4b_FP8_bad.png" alt="Qwen3-4B Errors" width="600">
+<img src="img/qwen3_4b_FP8_bad.png" alt="Qwen3-4B Errors" width="800">
 
 ##### Improved Run
-<img src="img/qwen3_4b_FP8_good.png" alt="Qwen3-4B Improved" width="600">
+<img src="img/qwen3_4b_FP8_good.png" alt="Qwen3-4B Improved" width="800">
 
 
 
@@ -201,41 +201,41 @@ However, after disabling thinking-mode, increasing the temperature to 0.7, and s
 Unsurprisingly, the GPT models perform very well with this simple task (though do bear in mind they're benchmarked on a smaller sample size).
 By using mode.TOOLS_STRICT, we're achieving 93-100% success rate, and high scores between from 0.89 to 0.98 (without errors).<br>
 #### GPT-4.1-nano
-<img src="img/gpt4_1_nano.png" alt="GPT-4.1-nano" width="600">
+<img src="img/gpt4_1_nano.png" alt="GPT-4.1-nano" width="800">
 
 #### GPT-4.1-mini
-<img src="img/gpt4_1_mini.png" alt="GPT-4.1-mini" width="600">
+<img src="img/gpt4_1_mini.png" alt="GPT-4.1-mini" width="800">
 
 #### GPT-5-nano
-<img src="img/gpt5_nano.png" alt="GPT-5-nano" width="600">
+<img src="img/gpt5_nano.png" alt="GPT-5-nano" width="800">
 
 #### GPT-5-mini
-<img src="img/gpt5_mini.png" alt="GPT-5-mini" width="600">
+<img src="img/gpt5_mini.png" alt="GPT-5-mini" width="800">
 
 
 ## Claude Model Family
 
 #### Claude3-haiku
-<img src="img/claude3_haiku.png" alt="Claude3-haiku" width="600">
+<img src="img/claude3_haiku.png" alt="Claude3-haiku" width="800">
 
 #### Claude3.5-haiku
-<img src="img/claude3_5_haiku.png" alt="Claude3.5-haiku" width="600">
+<img src="img/claude3_5_haiku.png" alt="Claude3.5-haiku" width="800">
 
 #### Claude3.5-sonnet (v1)
-<img src="img/claude3_5_sonnet.png" alt="Claude3.5-sonnet" width="600">
+<img src="img/claude3_5_sonnet.png" alt="Claude3.5-sonnet" width="800">
 
 
 ## MoonshotAI Kimi K2
-<img src="img/kimi_k2.png" alt="MoonshotAI Kimi K2" width="600">
+<img src="img/kimi_k2.png" alt="MoonshotAI Kimi K2" width="800">
 
 ## Mistral Model Family
 
 #### Mistral Small 3.2 24B Instruct
 
-<img src="img/mistral_small_3_2_24b.png" alt="Mistral Small 3.2 24B Instruct" width="600">
+<img src="img/mistral_small_3_2_24b.png" alt="Mistral Small 3.2 24B Instruct" width="800">
 
 #### Mistral Nemo
-<img src="img/mistral_nemo.png" alt="Mistral Nemo" width="600">
+<img src="img/mistral_nemo.png" alt="Mistral Nemo" width="800">
 
 ## Gemini 2.5 Flash
-<img src="img/gemini_2_5_flash.png" alt="Gemini 2.5 Flash" width="600">
+<img src="img/gemini_2_5_flash.png" alt="Gemini 2.5 Flash" width="800">
