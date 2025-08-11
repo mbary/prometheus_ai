@@ -208,7 +208,8 @@ class Agent:
                                                             bridge=self.bridge,
                                                             benchmarking=benchmarking,
                                                             model=model,
-                                                            max_tokens=max_tokens)
+                                                            max_tokens=max_tokens,
+                                                            mode=selected_mode)
 
         self.SYS_PROMPT = self._build_sys_prompt(self.deps, self.state)
         logfire.instrument_openai()
@@ -230,11 +231,13 @@ class Agent:
                     max_retries=self.deps.max_retries,
                     temperature=0.2,
                     max_tokens=self.deps.max_tokens,
+                    # reasoning_effort="minimal",
+                    # verbosity="low"
                     presence_penalty=1.5,
-                    top_p=0.9,
+                    top_p=0.8,
                     extra_body={
                                 "repetition_penalty": 1.05,
-                                "top_k": 20, 
+                                # "top_k": 20, 
                                 # "chat_template_kwargs": {"enable_thinking": False},
                                 "min_p":0
                                 }
