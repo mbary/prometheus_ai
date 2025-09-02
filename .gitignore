@@ -14,5 +14,8 @@ wheels/
 .env
 *.mp3
 *.m4a
+wandb/**
+unsloth_compiled_cache/**
+.art/**
 # *.yaml
 # *.yml
