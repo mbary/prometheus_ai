@@ -59,7 +59,7 @@ weave.op()
 class GRPOHue:
     def __init__(self, model_name: str = "unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit", 
                  max_lora_rank: int = 32,
-                 gpu_memory_utilizaiton: float = 0.6,
+                 gpu_memory_utilization: float = 0.6,
                  fast_inference: bool = True,
                  max_seq_length: int = 2048,
                  ) -> None:
@@ -71,7 +71,7 @@ class GRPOHue:
             dtype=None,
             fast_inference=fast_inference,
             max_lora_rank=max_lora_rank,
-            gpu_memory_utilization=gpu_memory_utilizaiton,
+            gpu_memory_utilization=gpu_memory_utilization,
         )
 
         self.model = FastLanguageModel.get_peft_model(
@@ -188,10 +188,11 @@ class GRPOHue:
                     "expected_action": scenario.action_type
                 }
                 detailed_scores.append(detailed_score)
-
+    
             except Exception as e:
                 rewards.append(0.0)
-
+                
+            return rewards
     weave.op()
     def prepare_dataset(self, scenarios: List[Scenario]) -> Dataset:
         
@@ -242,7 +243,7 @@ class GRPOHue:
             "weight_decay": 0.1,
             "warmup_ratio": 0.1,
             "lr_scheduler_type": "cosine",
-            "optim": "paged_adamw_8bit",
+            # "optim": "paged_adamw_8bit",
             "per_device_train_batch_size": 1,
             "gradient_accumulation_steps": 4,
             "num_generations": 8,
@@ -262,7 +263,8 @@ class GRPOHue:
             "dataloader_num_workers": 0,
             # "fp16": True,
             "gradient_checkpointing": True,
-            "report_to": "wandb"
+            "report_to": "wandb",
+            "run_name": "grpo_training"
         }
 
         training_args = GRPOConfig(**training_config)
@@ -297,7 +299,9 @@ class GRPOHue:
 
 def main():
     model_name="unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit"
-    weave.init(project_name=f"grpo_training")
+    # weave.init(project_name=f"grpo_training")
+    # wandb.init("grpo_training")
+    wandb.init(project="grpo_training", name="grpo_hue_agent")
     agent = GRPOHue(
         model_name=model_name,
         max_seq_length=2048,
