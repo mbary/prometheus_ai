@@ -19,6 +19,9 @@ from utils.project_types import Command, Brightness
 
 AGENTACTIONS = Union[turn_on, turn_off, set_scene, set_brightness, set_temperature]
 
+project_name="mbaryp2-mbary/grpo_training2"
+entity,project = project_name.split("/")
+
 SYS_PROMPT = """You are an assistant parsing commands for a smart lighting system.
 
 Always respond with valid JSON in this exact format:
@@ -191,8 +194,8 @@ class GRPOHue:
     
             except Exception as e:
                 rewards.append(0.0)
-                
-            return rewards
+
+        return rewards
     weave.op()
     def prepare_dataset(self, scenarios: List[Scenario]) -> Dataset:
         
@@ -237,23 +240,23 @@ class GRPOHue:
 
         training_config = {
             "output_dir": output_dir,
-            "learning_rate": 5e-6,
+            "learning_rate": 2e-5,
             "adam_beta1": 0.9,
             "adam_beta2": 0.99,
             "weight_decay": 0.1,
             "warmup_ratio": 0.1,
             "lr_scheduler_type": "cosine",
-            # "optim": "paged_adamw_8bit",
-            "per_device_train_batch_size": 1,
-            "gradient_accumulation_steps": 4,
+            "optim": "paged_adamw_8bit",
+            "per_device_train_batch_size": 4,
+            "gradient_accumulation_steps": 2,
             "num_generations": 8,
-            "max_prompt_length": 512,
-            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "max_completion_length": 1024,
             "num_train_epochs": 1,
             "max_steps": max_steps,
             # "eval_steps": eval_steps,
-            "logging_steps": 10,
-            "save_steps": 100,
+            "logging_steps": 5,
+            "save_steps": 250,
             "use_vllm": True,
             "vllm_mode": "colocate",
             "vllm_gpu_memory_utilization": 0.6,
@@ -264,7 +267,8 @@ class GRPOHue:
             # "fp16": True,
             "gradient_checkpointing": True,
             "report_to": "wandb",
-            "run_name": "grpo_training"
+            "run_name": "grpo_training",
+            "max_grad_norm": 1.0
         }
 
         training_args = GRPOConfig(**training_config)
@@ -297,11 +301,29 @@ class GRPOHue:
         except Exception as e:
             raise e
 
+weave.op()
 def main():
+    
     model_name="unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit"
-    # weave.init(project_name=f"grpo_training")
-    # wandb.init("grpo_training")
-    wandb.init(project="grpo_training", name="grpo_hue_agent")
+    
+    # wandb.init(project="grpo_training", name="grpo_hue_agent3")
+    # agent = GRPOHue(
+    #     model_name=model_name,
+    #     max_seq_length=2048,
+    #     max_lora_rank=16)
+    
+    # trainer = agent.train(
+    #     dataset_name="mbary/hue_commands_synth_5k_v3",
+    #     split="train",
+    #     limit=1000,
+    #     output_dir="grpo_hue_agent",
+    #     max_steps=500,
+    #     # eval_steps=50
+    #     )
+    
+    # agent.save_model_prod("grpo_hue_agent_v1")
+    # return agent, trainer
+    
     agent = GRPOHue(
         model_name=model_name,
         max_seq_length=2048,
@@ -320,4 +342,7 @@ def main():
     return agent, trainer
 
 if __name__ == "__main__":
-    agent, trainer = main()
+    
+    weave.init(project_name)
+    with wandb.init(entity=entity,project=project, name="grpo_hue_agent4") as run:
+        agent, trainer = main()
