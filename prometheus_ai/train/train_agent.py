@@ -225,32 +225,51 @@ class GRPOHue:
         """Create training configuration - this will be traced"""
         training_config = {
             "output_dir": output_dir,
-            "learning_rate": 2e-5,
+            "learning_rate": 5e-6,
             "adam_beta1": 0.9,
-            "adam_beta2": 0.99,
+            "adam_beta2": 0.999,
             "weight_decay": 0.1,
             "warmup_ratio": 0.1,
             "lr_scheduler_type": "cosine",
             "optim": "paged_adamw_8bit",
-            "per_device_train_batch_size": 4,
-            "gradient_accumulation_steps": 2,
-            "num_generations": 8,
+
+
+            "per_device_train_batch_size": 2,
+            "gradient_accumulation_steps": 8,
+            
+            
+            "num_generations": 4,
             "max_prompt_length": 1024,
             "max_completion_length": 1024,
+
+
             "num_train_epochs": 1,
             "max_steps": max_steps,
             "logging_steps": 5,
             "save_steps": 250,
+
+
             "use_vllm": True,
             "vllm_mode": "colocate",
-            "vllm_gpu_memory_utilization": 0.6,
-            "loss_type": "dapo",
+            "vllm_gpu_memory_utilization": 0.7,
+
+            # "loss_type": "dapo",
+            # "loss_type": "grpo",
+            # "loss_type": "dnpo",
+            "loss_type": "dr_grpo",
+
+            "beta": 0.01,
+            "epsilon": 0.2,
+            "epsilon_high": 0.28,
+            "mask_truncated_completions": True,
+            "scale_rewards": False,
+
             "remove_unused_columns": False,
             "dataloader_num_workers": 0,
             "gradient_checkpointing": True,
             "report_to": "wandb",
             "run_name": "grpo_training",
-            "max_grad_norm": 1.0
+            "max_grad_norm": 0.5
         }
         return GRPOConfig(**training_config)
     
