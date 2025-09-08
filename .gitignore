@@ -10,6 +10,8 @@ wheels/
 .venv
 
 # User defined
+grpo_*/**
+runs/**
 *.wav
 .env
 *.mp3
@@ -19,3 +21,6 @@ unsloth_compiled_cache/**
 .art/**
 # *.yaml
 # *.yml
+bckp_models/**
+prometheus_ai/train/logs/**
+eval_outputs/**
