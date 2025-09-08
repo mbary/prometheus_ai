@@ -16,12 +16,12 @@ sys.path.append(str(Path(__file__).parent.parent))
 from utils.utils_types import load_scenarios, score_action, Scenario
 from utils.agent_tools import turn_off, turn_on, set_brightness, set_scene, set_temperature
 from utils.project_types import Command, Brightness
-from reward_funcs2 import create_grpo_reward_functions
+from reward_funcs5 import create_grpo_reward_functions
 
 AGENTACTIONS = Union[turn_on, turn_off, set_scene, set_brightness, set_temperature]
 
 # ---- project + unified run dirs (ONLY change) ----
-PROJECT_FULL = "mbaryp2-mbary/grpo_training6"
+PROJECT_FULL = "mbaryp2-mbary/grpo_training7"
 entity, project = PROJECT_FULL.split("/")
 
 RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
