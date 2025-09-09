@@ -1,4 +1,3 @@
-
 import unsloth
 import os, json, sys
 from pathlib import Path
@@ -6,21 +5,21 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
-import torch, weave, wandb
+import weave
+import wandb
 from datasets import Dataset
 from pydantic import ValidationError
 from trl import GRPOConfig, GRPOTrainer
 from unsloth import FastLanguageModel
 
 sys.path.append(str(Path(__file__).parent.parent))
-from utils.utils_types import load_scenarios, score_action, Scenario
+from utils.utils_types import load_scenarios, Scenario
 from utils.agent_tools import turn_off, turn_on, set_brightness, set_scene, set_temperature
 from utils.project_types import Command, Brightness
 from reward_funcs5 import create_grpo_reward_functions
 
 AGENTACTIONS = Union[turn_on, turn_off, set_scene, set_brightness, set_temperature]
 
-# ---- project + unified run dirs (ONLY change) ----
 PROJECT_FULL = "mbaryp2-mbary/grpo_training7"
 entity, project = PROJECT_FULL.split("/")
 
@@ -144,7 +143,7 @@ class GRPOHue:
     @weave.op()
     def setup_training_config(self, max_steps: int) -> GRPOConfig:
         training_config = {
-            "output_dir": str(CKPT_DIR),            # <-- CKPT_DIR
+            "output_dir": str(CKPT_DIR),  
             "learning_rate": 5e-6,
             "adam_beta1": 0.9,
             "adam_beta2": 0.999,
@@ -183,7 +182,6 @@ class GRPOHue:
             "report_to": "wandb",
             "max_grad_norm": 0.5,
         }
-        # persist config like new script
         (CONF_DIR / "train_args.json").write_text(json.dumps(training_config, indent=2))
         (CONF_DIR / "sys_prompt.txt").write_text(SYS_PROMPT)
         return GRPOConfig(**training_config)
@@ -193,7 +191,7 @@ class GRPOHue:
               dataset_name: str = "mbary/hue_commands_synth_5k_v3",
               split: str = "train",
               limit: Optional[int] = 3000,
-              output_dir: str = str(CKPT_DIR),   # <-- per-run ckpt
+              output_dir: str = str(CKPT_DIR),
               max_steps: int = 300,
               test_rewards_first: bool = True) -> GRPOTrainer:
 
@@ -205,14 +203,13 @@ class GRPOHue:
             print("Testing reward functions before training...")
             print("="*60)
             if not self.test_reward_functions(scenarios[:50], reward_functions):
-                print("\n❌ Reward functions failed testing. Fix them before training!")
+                print("\nReward functions failed testing. Fix them before training!")
                 raise ValueError("Reward functions not suitable for training")
             print("\n✅ Reward functions passed testing. Proceeding with training...")
 
         dataset = self.prepare_dataset(scenarios)
         training_args = self.setup_training_config(max_steps)
 
-        # EXACTLY like old script: keep gen_kwargs, no vllm_sampling_params
         trainer = GRPOTrainer(
             model=self.model,
             processing_class=self.tokenizer,
@@ -228,16 +225,12 @@ class GRPOHue:
         )
 
         trainer.train()
-        trainer.save_model(output_dir)  # ckpt → CKPT_DIR
+        trainer.save_model(output_dir)
 
-        # LoRA adapter + tokenizer → LORA_DIR
         self.model.save_pretrained(str(LORA_DIR))
         self.tokenizer.save_pretrained(str(LORA_DIR))
 
-        # merged 16-bit → MERGED_DIR
         self.model.save_pretrained_merged(str(MERGED_DIR), self.tokenizer, save_method="merged_16bit")
-
-        # manifest like new script
         
         return trainer
 
@@ -300,5 +293,7 @@ if __name__ == "__main__":
     weave.init(PROJECT_FULL)
     with wandb.init(entity=entity, project=project, name=RUN_NAME, dir=str(RUN_ROOT)):
         run_training()
-    try: weave.finish()
-    except Exception: pass
+    try: 
+        weave.finish()
+    except Exception: 
+        pass
