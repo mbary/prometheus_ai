@@ -3,15 +3,12 @@ import sys
 from pathlib import Path
 from collections import Counter
 import asyncio
-import random
 import json
 import argparse
 from datetime import datetime
 from typing import Optional, List, Dict
 
-import instructor
 import weave
-from datasets import load_dataset
 from tqdm.asyncio import tqdm
 from rich import print
 from rich.table import Table
@@ -20,11 +17,8 @@ from rich.console import Console
 sys.path.append(str(Path(__file__).parent.parent))
 from prometheus_ai import Agent
 from utils.project_types import Scenario, Trajectory
-from utils.utils_types import load_scenarios, score_action  # <-- use shared utils
+from utils.utils_types import load_scenarios, score_action 
 
-# -----------------------------
-# run_agent_and_score
-# -----------------------------
 @weave.op()
 async def run_agent_and_score(
     scenario: Scenario,
@@ -35,8 +29,6 @@ async def run_agent_and_score(
         action = await agent.action(scenario.full_command)
 
         if isinstance(action, dict) and 'error' in action:
-            # simple print so we don't depend on loggers; trace captured by weave op return
-            # print(f"[red]Error in action:[/red] {action['error']}\nScenario: {scenario.full_command}")
             trajectory = Trajectory(
                 scenario=scenario,
                 action=None,
@@ -46,7 +38,6 @@ async def run_agent_and_score(
             )
             return trajectory
         else:
-            # scoring comes from shared utils
             score = score_action(action, scenario)
 
             normalized_total_score = sum(score.values()) / len(score) if len(score) > 0 else 0
@@ -66,14 +57,8 @@ async def run_agent_and_score(
                 correct_brightness_relative=score['correct_brightness_relative'],
                 correct_brightness_up_down=score['correct_brightness_up_down']
             )
-            # light console note; detailed data is in the weave trace (inputs/outputs)
-            # print(f"[dim]Scenario {scenario.id} scored {normalized_total_score:.3f}[/dim]")
-
         return trajectory
 
-# -----------------------------
-# benchmark orchestrator
-# -----------------------------
 @weave.op()
 async def benchmark(
     model: str,
@@ -94,16 +79,6 @@ async def benchmark(
     )
 
     print(f"Loaded {len(scenarios)} scenarios after filtering (seed: {seed})")
-
-    # instructor_mode = None
-    # if mode:
-    #     if hasattr(instructor.Mode, mode.upper()):
-    #         instructor_mode = getattr(instructor.Mode, mode.upper())
-    #     else:
-    #         raise ValueError(
-    #             f"Invalid mode: {mode}. "
-    #             f"Available modes: {[attr for attr in dir(instructor.Mode) if not attr.startswith('_')]}"
-            # )
 
     agent = Agent(
         benchmarking=True,
@@ -184,11 +159,11 @@ def main():
                         help="Maximum number of concurrent requests (default: 8)")
     parser.add_argument("--samples", type=int, default=10,
                         help="Number of scenarios to benchmark (default: 10)")
-    parser.add_argument("--model-name", type=str, default="Qwen3-0.6B",
+    parser.add_argument("--model-name", type=str, required=True,
                         help="Model name to use for benchmarking (default: Qwen3-0.6B)")
     # parser.add_argument("--skip-actions", nargs="*",
     #                     help="Actions to skip during benchmarking (default: set_color dim)")
-    parser.add_argument("--provider", type=str, default="local",
+    parser.add_argument("--provider", type=str, default="local", choices=["local", "openrouter", "openai"],
                         help="Provider for the model API (default: local)")
     # parser.add_argument("--mode", type=str, default=None,
     #                     help="Instructor mode to use (e.g., TOOLS, JSON, ANTHROPIC_TOOLS)")
@@ -203,7 +178,6 @@ def main():
     LOG_PATH = Path(__file__).parent.resolve() / "logs"
     LOG_PATH.mkdir(parents=True, exist_ok=True)
 
-    # Initialize Weave (project can be overridden with env var)
     weave.init("benchmarking_new")
 
     print(f"   Starting benchmark with configuration:")
@@ -212,17 +186,14 @@ def main():
     print(f"   Samples: {args.samples}")
     print(f"   Concurrent requests: {args.concurrent}")
     print(f"   Seed: {args.seed}")
-    # print(f"   Skipping actions: {args.skip_actions}")
     print(f"   Running benchmark with rate limiting (max {args.concurrent} concurrent requests)...\n")
 
     results = asyncio.run(benchmark(
         num_scenarios=args.samples,
         max_concurrent_requests=args.concurrent,
-        # exclude_actions=args.skip_actions,
         model=args.model_name,
         seed=args.seed,
         provider=args.provider,
-        # mode=args.mode,
     ))
 
     final_score_list_no_errors = [t.total_score for t in results if t.total_score is not None]
