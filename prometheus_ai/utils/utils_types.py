@@ -9,6 +9,7 @@ import argparse
 from datetime import datetime
 from typing import Optional, List, Dict
 
+import weave
 import instructor
 import logfire
 from datasets import load_dataset
@@ -21,7 +22,7 @@ from rich.console import Console
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.project_types import Scenario
 
-@logfire.instrument('load_scenarios', extract_args=True, record_return=True)
+@weave.op()
 def load_scenarios(
     dataset_name: str = "mbary/hue_commands_synth_5k_v3", 
     split: str = "train", 
@@ -78,11 +79,10 @@ def load_scenarios(
         scenarios.append(scenario)
         processed_count += 1
     
-    logfire.info(f"Loaded {len(scenarios)} scenarios from {dataset_name} ({split} split) with limit={limit}, seed={seed}")
     return scenarios
 
 
-@logfire.instrument('score_action', extract_args=True, record_return=True)
+@weave.op()
 def tool_usage(action, scenario) -> int:
     """
     Scores the action based on the command.
@@ -92,7 +92,7 @@ def tool_usage(action, scenario) -> int:
         score = 1
     return score
 
-@logfire.instrument('correct_zone', extract_args=True, record_return=True)
+@weave.op()
 def correct_zone(action, scenario) -> int:
     """
     Checks if the action's zone matches the scenario's zone.
@@ -102,29 +102,28 @@ def correct_zone(action, scenario) -> int:
         score = 1
     return score
 
-@logfire.instrument('correct_scene', extract_args=True, record_return=True)
+@weave.op()
 def correct_scene(action, scenario) -> int:
     score = 0
     if action and action.command.scene == scenario.scene:
         score = 1
     return score
 
-@logfire.instrument('correct_light', extract_args=True, record_return=True)
+@weave.op()
 def correct_light(action, scenario) -> int:
     score = 0
     if action and action.command.light == scenario.light:
         score = 1
     return score
 
-@logfire.instrument('correct_temperature', extract_args=True, record_return=True)
+@weave.op()
 def correct_temperature(action, scenario) -> int:
     score = 0
     if action and action.command.temperature == scenario.temperature:
         score = 1
     return score
 
-
-@logfire.instrument('correct_brightness', extract_args=True, record_return=True)
+@weave.op()
 def correct_brightness(action, scenario) -> int:
 
     score = 0
@@ -132,21 +131,21 @@ def correct_brightness(action, scenario) -> int:
         score = 1
     return score
 
-@logfire.instrument('correct_brightness_relative', extract_args=True, record_return=True)
+@weave.op()
 def correct_brightness_relative(action, scenario) -> int:
     score = 0
     if action and action.command.brightness.relative == scenario.brightness.relative:
         score = 1
     return score
 
-@logfire.instrument('correct_brightness_up_down', extract_args=True, record_return=True)
+@weave.op()
 def correct_brightness_up_down(action, scenario) -> int:
     score = 0
     if action and action.command.brightness.up_down == scenario.brightness.up_down:
         score = 1
     return score
 
-@logfire.instrument('score_action', extract_args=True, record_return=True)
+@weave.op()
 def score_action(action,scenario) -> Dict[str, float]:
     correct_tool_score = tool_usage(action, scenario)
     correct_zone_score = correct_zone(action, scenario)
