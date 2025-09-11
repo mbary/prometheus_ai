@@ -11,7 +11,7 @@ import re
 from openai import AsyncOpenAI
 from rich import print
 import instructor
-import weave
+# import weave
 import logfire
 from pydantic import ValidationError
 from dotenv import load_dotenv
@@ -128,7 +128,7 @@ AGENTACTIONS = Union[turn_on,
                     #  Dim
                      ]
 
-@weave.op()
+# @weave.op()
 def _extract_first_json_block(text: str) -> str | None:
     # Strip fences (```json / ``` JSON / bare ```), anywhere top/bottom
     s = (text or "").strip()
@@ -153,7 +153,7 @@ def _extract_first_json_block(text: str) -> str | None:
                 return s[start:i+1]
     return None
 
-@weave.op()
+# @weave.op()
 def _loads_jsonish(block: str):
     # 1) strict JSON
     try:
@@ -433,7 +433,7 @@ class Agent:
         lines = []
         for section, items in data.items():
             line = f"{section}: {', '.join(items)}"
-            lines.append(line)
+            lines.append(line.lower())
             # for item in items:
             #     lines.append(f"    - {item}")
         return "\n".join(lines)
@@ -469,12 +469,11 @@ class Agent:
             "zone": "office|lounge|lounge floor lights|bedroom|all|tv",
             "light": "light_name or null",
             "scene": "scene_name or null", 
-            "temperature": number_or_null,
-            "brightness": {
-            "brightness": number_or_null,
-            "relative": true_or_false_or_null,
-            "up_down": "up|down or null"
-            }
+            "temperature": number_or_null,            
+            "brightness_value": number_or_null,
+            "brightness_mode": "absolute|relative|null",
+            "brightness_direction": "up|down or null"
+            
         }
         }"""
         SYS_PROMPT += f"""\n\nAvailable zones: {zones}\n\nAvailable devices per zone:\n{zone_devices}\n\nAvailable scenes per zone:\n{zone_scenes}\n\n#Rules:
@@ -483,8 +482,12 @@ class Agent:
         - Temperature range: 153-500
         - Brightness range: 1-100
         - For relative brightness, "brightness" MUST be a decimal between 0 and 1 (e.g., 0.2 for 20%).
-  Do NOT output 20 or 20% for relative deltas.
-        - Output only a single JSON object. No prose."""
+        Do NOT output 20 or 20% for relative deltas.
+        - Output only a single JSON object. No prose.
+        # Brightness rules:
+        - If relative: true -> `brightness` is a fractional delta in (0,1]; e.g., 0.2 means "+20%", 0.1 means "+10%".
+        - If relative: false -> `brightness` is an absolute level 1-100.
+        - Never mix units. Do not output 80 when relative=true; do not output 0.2 when relative=false."""
 
         # SYS_PROMPT += """
         # # Brightness rules:
@@ -497,21 +500,15 @@ class Agent:
         # "brightness":{"brightness":75,"relative":false,"up_down":null}}}
         # """
 
-        SYS_PROMPT+="""
-        # Brightness rules:
-        - If relative: true -> `brightness` is a fractional delta in (0,1]; e.g., 0.2 means "+20%", 0.1 means "+10%".
-        - If relative: false -> `brightness` is an absolute level 1-100.
-        - Never mix units. Do not output 80 when relative=true; do not output 0.2 when relative=false.
-
-        # Examples:
-        {"action_type":"set_brightness","command":{"zone":"lounge","light":"standing","scene":null,"temperature":null,"brightness":{"brightness":0.15,"relative":true,"up_down":"up"}}}
-        {"action_type":"set_brightness","command":{"zone":"bedroom","light":null,"scene":null,"temperature":null,"brightness":{"brightness":0.30,"relative":true,"up_down":"down"}}}
-        {"action_type":"set_brightness","command":{"zone":"tv","light":null,"scene":null,"temperature":null,"brightness":{"brightness":42,"relative":false,"up_down":null}}}
-        {"action_type":"set_scene","command":{"zone":"office","light":null,"scene":"Energize","temperature":null,"brightness":{"brightness":null,"relative":false,"up_down":null}}}"""
+        SYS_PROMPT+="""# Examples (one-line JSON, no prose):
+        {"action_type":"set_brightness","command":{"zone":"lounge","light":"standing","scene":null,"temperature":null,"brightness_value":0.15,"brightness_mode":"relative","brightness_direction":"up"}}
+        {"action_type":"set_brightness","command":{"zone":"bedroom","light":null,"scene":null,"temperature":null,"brightness_value":0.3,"brightness_mode":"relative","brightness_direction":"down"}}
+        {"action_type":"set_brightness","command":{"zone":"tv","light":null,"scene":null,"temperature":null,"brightness_value":42,"brightness_mode":"absolute","brightness_direction":null}}
+        {"action_type":"set_scene","command":{"zone":"office","light":null,"scene":"Energize","temperature":null,"brightness_value":null,"brightness_mode":"null","brightness_direction":null}}"""
 
         return textwrap.dedent(SYS_PROMPT)
 
-    @weave.op()
+    # @weave.op()
     async def generate_response(self, query: str):
         response = await self.deps.client.chat.completions.create(
             model=self.deps.model,
@@ -524,74 +521,7 @@ class Agent:
             max_tokens=256)
         return response.choices[0].message.content or ""
 
-    # @weave.op()
-    # def parse_completion_to_action(self, completion: str): ##TODO Add return type once determined
-        # try:
-        #     completion = completion.strip()
-        #     if completion.startswith("```json"):
-        #         completion = completion.replace("```json","").replace("```","").strip()
-        #     data = json.loads(completion)
-
-        #     action_type = data["action_type"]
-
-        #     brightness_data = data["command"].get("brightness", {})
-        #     brightness = None
-        #     if brightness_data:
-        #         brightness = Brightness(
-        #             brightness=brightness_data.get("brightness"),
-        #             relative=brightness_data.get("relative"),
-        #             up_down=brightness_data.get("up_down"),
-        #         )
-        #     command = Command(
-        #         zone=data["command"]["zone"],
-        #         light=data["command"]["light"],
-        #         scene=data["command"]["scene"],
-        #         temperature=data["command"]["temperature"],
-        #         brightness=brightness,
-        #     )
-        #     action_map = {
-        #         "turn_on": turn_on, "turn_off": turn_off, "set_scene": set_scene,
-        #         "set_brightness": set_brightness, "set_temperature": set_temperature,
-        #     }
-        #     return action_map[action_type](think=data["think"], command=command) if action_type in action_map else None
-        # except (json.JSONDecodeError, KeyError, ValidationError, TypeError, AttributeError):
-        #     return None
-        
-        # try:
-        #     s = completion.strip()
-        #     if s.startswith("```json"):
-        #         s = s.replace("```json", "").replace("```", "").strip()
-        #     data = json.loads(s)
-        #     a = data.get("action_type")
-        #     cmd = data.get("command", {}) or {}
-
-        #     b_raw = cmd.get("brightness")
-        #     brightness = None
-        #     if isinstance(b_raw, dict):
-        #         brightness = Brightness(
-        #             brightness=b_raw.get("brightness"),
-        #             relative=b_raw.get("relative"),
-        #             up_down=b_raw.get("up_down"),
-        #         )
-
-        #     command = Command(
-        #         zone=cmd.get("zone"),
-        #         light=cmd.get("light"),
-        #         scene=cmd.get("scene"),
-        #         temperature=cmd.get("temperature"),
-        #         brightness=brightness,
-        #     )
-        #     action_map = {
-        #         "turn_on": turn_on, "turn_off": turn_off, "set_scene": set_scene,
-        #         "set_brightness": set_brightness, "set_temperature": set_temperature,
-        #     }
-        #     if a in action_map:
-        #         return action_map[a](think=data.get("think",""), command=command)
-        #     return None
-        # except Exception:
-        #     return None
-
-    @weave.op()  # <-- captures parse failures as exceptions with raw content attached
+    # @weave.op() 
     def parse_completion_to_action(self, completion: str):
         ACTION_MAP = {
             "turn_on": turn_on,
@@ -637,7 +567,7 @@ class Agent:
 
         return ACTION_MAP[action_type](think=data.get("think", ""), command=command)
         
-    @weave.op()
+    # @weave.op()
     async def action(self, user_prompt: str) -> None:
         try:
             raw_response = await self.generate_response(user_prompt)
@@ -661,7 +591,7 @@ async def main():
     user_query = ""
 
 
-    weave.init("prometheus_ai_agent")
+    # weave.init("prometheus_ai_agent")
     while True and user_query.lower() != "exit":
         try:
             user_query = input("Enter your command: ")
@@ -672,11 +602,11 @@ async def main():
         except KeyboardInterrupt:
             print("\nExiting...")
             break
-        finally:
-            try:
-                weave.finish()
-            except Exception:
-                pass            
+        # finally:
+        #     try:
+        #         # weave.finish()
+        #     except Exception:
+        #         pass            
 
 # async def main():
 #     user_query = ''
