@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal, Union
 from pydantic import Field, BaseModel
-import weave
+# import weave
 
 from utils.project_types import StateManager, DependenciesManager, Command
 
@@ -20,7 +20,7 @@ class turn_on(BaseModel):
     action_type: Literal["turn_on"] = "turn_on"
     command: Command = Field(description="Details of the action to be performed")
 
-    @weave.op()
+    # @weave.op()
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to turn on the lights.") 
@@ -40,7 +40,7 @@ class turn_off(BaseModel):
     action_type: Literal["turn_off"] = "turn_off"
     command: Command = Field(description="Details of the action to be performed")
 
-    @weave.op()
+    # @weave.op()
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to turn off the lights.")
@@ -60,7 +60,7 @@ class set_scene(BaseModel):
     action_type: Literal["set_scene"] = "set_scene"
     command: Command = Field(description="Details of the action to be performed")
 
-    @weave.op()
+    # @weave.op()
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to set the scene.")
@@ -78,7 +78,7 @@ class set_brightness(BaseModel):
     action_type: Literal["set_brightness"] = "set_brightness"
     command: Command = Field(description="Details of the action to be performed")
 
-    @weave.op()
+    # @weave.op()
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to set the brightness.")
@@ -131,7 +131,7 @@ class set_temperature(BaseModel):
     action_type: Literal["set_temperature"] = "set_temperature"
     command: Command = Field(description="Details of the action to be performed")
     
-    @weave.op()
+    # @weave.op()
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to set the temperature.")
@@ -151,7 +151,7 @@ class Dim(BaseModel):
     action_type: Literal["dim"] = "dim"
     command: Command = Field(description="Details of the action to be performed")
 
-    @weave.op()
+    # @weave.op()
     def execute(self, state: StateManager, deps: DependenciesManager, command: Command) -> None:
         if not command.zone:
             raise ValueError("Zone must be specified to dim the lights.")

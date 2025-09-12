@@ -434,8 +434,6 @@ class Agent:
         for section, items in data.items():
             line = f"{section}: {', '.join(items)}"
             lines.append(line.lower())
-            # for item in items:
-            #     lines.append(f"    - {item}")
         return "\n".join(lines)
 
     def _build_sys_prompt(self, deps: DependenciesManager, state:StateManager) -> str:
@@ -488,17 +486,6 @@ class Agent:
         - If relative: true -> `brightness` is a fractional delta in (0,1]; e.g., 0.2 means "+20%", 0.1 means "+10%".
         - If relative: false -> `brightness` is an absolute level 1-100.
         - Never mix units. Do not output 80 when relative=true; do not output 0.2 when relative=false."""
-
-        # SYS_PROMPT += """
-        # # Brightness rules:
-        # - If relative: true -> `brightness` is a fractional delta in (0,1]; e.g., 0.2 means "+20%", 0.1 means "+10%".
-        # - If relative: false -> `brightness` is an absolute level 1-100.
-        # - Never mix units. Do not output 80 when relative=true; do not output 0.2 when relative=false.
-        # #Examples:\n{"action_type":"set_brightness","command":{"zone":"office","light":null,"scene":null,
-        # "temperature":null,"brightness":{"brightness":0.2,"relative":true,"up_down":"up"}}}
-        # {"action_type":"set_brightness","command":{"zone":"office","light":null,"scene":null,"temperature":null,
-        # "brightness":{"brightness":75,"relative":false,"up_down":null}}}
-        # """
 
         SYS_PROMPT+="""# Examples (one-line JSON, no prose):
         {"action_type":"set_brightness","command":{"zone":"lounge","light":"standing","scene":null,"temperature":null,"brightness_value":0.15,"brightness_mode":"relative","brightness_direction":"up"}}
@@ -562,7 +549,6 @@ class Agent:
                 brightness=brightness,
             )
         except ValidationError as ve:
-            # Let Weave capture the exception + inputs
             raise ValueError(f"Pydantic validation failed: {ve}") from ve
 
         return ACTION_MAP[action_type](think=data.get("think", ""), command=command)

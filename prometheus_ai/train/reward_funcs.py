@@ -4,7 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
-import weave
+# import weave
 
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
@@ -33,7 +33,7 @@ class RewardFunctions:
     def __init__(self, parse_completion_to_action: Callable[[str], Union[Any, None]]) -> None:
         self.parse_completion_to_action = parse_completion_to_action
 
-    @weave.op()
+    # @weave.op()
     def json_validity_reward(self, prompts: List[str], completions: List[str], **kwargs) -> List[float]:
         rewards = []
         for c in completions:
@@ -49,7 +49,7 @@ class RewardFunctions:
                 rewards.append(-1.0)
         return rewards
 
-    @weave.op()
+    # @weave.op()
     def action_selection_reward(self, prompts: List[str], completions: List[str], **kwargs) -> List[float]:
         rewards = []
         scenarios = [Scenario(**json.loads(s)) for s in kwargs.get("scenarios", [])]
@@ -69,7 +69,7 @@ class RewardFunctions:
                 rewards.append(-1.0)
         return rewards
 
-    @weave.op()
+    # @weave.op()
     def zone_selection_reward(self, prompts: List[str], completions: List[str], **kwargs) -> List[float]:
         rewards = []
         scenarios = [Scenario(**json.loads(s)) for s in kwargs.get("scenarios", [])]
@@ -95,7 +95,7 @@ class RewardFunctions:
                 rewards.append(-0.8)
         return rewards
 
-    @weave.op()
+    # @weave.op()
     def parameter_accuracy_reward(self, prompts: List[str], completions: List[str], **kwargs) -> List[float]:
         rewards = []
         scenarios = [Scenario(**json.loads(s)) for s in kwargs.get("scenarios", [])]
@@ -157,7 +157,7 @@ class RewardFunctions:
                 rewards.append(-0.8)
         return rewards
 
-    @weave.op()
+    # @weave.op()
     def brightness_control_reward(self, prompts: List[str], completions: List[str], **kwargs) -> List[float]:
         rewards = []
         scenarios = kwargs.get("scenarios", [])
@@ -209,7 +209,7 @@ class RewardFunctions:
                 rewards.append(-1.0)
         return rewards
 
-    @weave.op()
+    # @weave.op()
     def extraneous_param_penalty(self, prompts: List[str], completions: List[str], **kwargs) -> List[float]:
         rewards = []
         scenarios = [Scenario(**json.loads(s)) for s in kwargs.get("scenarios", [])]
