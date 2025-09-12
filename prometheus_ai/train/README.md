@@ -34,6 +34,48 @@ While a 'regular' SFT would likely suffice, I find the concept of rewards quite 
 Due to the physical limitations of my machine (a single 12GB GPU), I chose to fine-tune the 4bit quantized version by unsloth, the *unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit* model following the LoRa GRPO approach by combining Unsloth's and HuggingFace's implementations of FastLanguageModel and GRPOTrainer.<br>
 Though I am likely to attempt fine-tuning some other models too!<br>
 
+#### Training Process
+##### Overall Reward
+From the graph, it seems like the steps (for all models) could be capped at around 100-125 steps, as the reward seems to plateau around that point.<br>
+![Training Rewards](images/training_rewards.png)
+
+The following graph presents the standard deviation of total rewards per sample, within each training step.<br>
+The 0.5B model (purple) exhibits the largest volatility, spiking to ~2–3 around 80–110 steps before decreasing, but elevated nonetheless (~1–2). <br>
+That pattern matches a model oscillating between very good and very bad trajectories i.e., it’s exploring and frequently flipping between perfect parses and near misses.<br> 
+Both 1.5B runs (orange/pink) display a significant bump in variance around 60–100 steps and then settle into a mid band (~0.3–0.8), suggesting partial stabilization with occasional swings.<br> 
+In contrast, the 3B models (teal/blue) rapidly collapse to very low variance (<0.3) after ~70 steps and remain flat; their rewards are highly consistent from step to step.<br>
+![STD](images/reward_std.png)
+
+
+The 'frac_reward_zero_std' graph shows the frequency of samples receiving zero reward per training step.<br>
+Usually due to invalid JSON outputs or completely incorrect actions.<br>
+Lower and flatter is better, stable schema adherence.<br> 
+In this run, the 0.5B model (purple) clearly stabilizes: it drops from ~0.9 to ~0.1 by ~110 steps and remains low, indicating it quickly locks onto the output format and keeps it.<br>
+Both 1.5B variants (orange/pink) hover in the mid band (~0.4–0.7) with noticeable oscillations, suggesting  schema slips despite improving task behavior.<br> 
+The 3B models (teal/blue) sit highest (~0.7–0.95) and stay unstable throughout training. They appear to keep exploring diverse outputs at the cost of consistent formatting. <br>
+Overall, the plot reveals a size-dependent pattern: as capacity grows, these models achieve strong task competence but exhibit less stable adherence to the strict JSON interface under the current training setup, whereas the compact 0.5B model converges to consistently valid and therefore rarely zero-reward—outputs.<br>
+![frec sts](images/frac_reward_zero_std.png)
+
+##### JSON Validity
+In the following JSON validity reward graphs the two 3B models surge from negative reward to ~0.8–0.9 mean by ~60–80 steps and then track flat, indicating near-always valid JSON.<br> 
+The 1.5B (4-bit) follows with a delayed but similar rise, stabilizing just under the 3B ceiling. <br>
+The 0.5B model is slower-crossing zero only around ~90–110 steps—and plateaus noticeably lower, reflecting occasional incorrect outputs late into training. The left plot (std) reinforces this: variance is high during the early ramp (40–80 steps), collapses to near-zero for the 3B and 1.5B runs once they lock into the schema, but remains elevated and spiky for the 0.5B, consistent with intermittent formatting regressions.<br> 
+Overall, JSON correctness becomes a solved behavior for larger models while the smallest run retains residual instability.<br>
+![JSON Validity Reward](images/json_validity.png)
+
+##### Action Selection
+Across runs, the 3B models ramp to near-perfect tool choice (~0.9–1.0 mean) by ~60–80 steps and then stay flat, with very low variance afterwards (std trending toward ~0.1 or less).<br> 
+The 1.5B 4-bit line follows a similar trajectory but with a slower climb and modest oscillations, it stabilizes slightly below the 3B ceiling. <br>
+The 0.5B model lags: it doesn’t reliably cross zero until ~90–110 steps and plateaus well under the others, with noticeably higher dispersion later in training. The left plot (std) mirrors this: variance spikes during the 40–90 step transition, then collapses for the 3B runs while remaining elevated and jagged for the 0.5B.<br> 
+Overall: larger models learn the correct action type quickly and consistently while the small model is both slower and less stable, suggesting residual ambiguity in tool selection.<br>
+![Action Selection Reward](images/action_selection_reward.png)
+
+##### Parameter Extraction Accuracy
+Across runs, the 3B models climb fastest from negative to ~0.45–0.6 mean reward by ~60–90 steps and stay there, indicating solid matching of required fields (scene, light, temperature/brightness) to the scenario.<br> 
+The 1.5B models trail slightly, settling around ~0.4–0.55, while the 0.5B model lags—remaining near zero until ~100 steps and only reaching ~0.15–0.25 by step 300. <br>
+The std plot stays relatively high (~0.6–0.8) for all models, i.e., per-batch accuracy is uneven: some scenarios are nailed while others still miss specific arguments. That persistent variance suggests parameter difficulty is normal across models (e.g., light names vs. exact numeric values), even as larger models deliver the best overall parameter accuracy.
+![Parameter Accuracy Reward](images/parameter_accuracy.png)
+
 #### Training Data
 For the training data I used the same dataset as for my initial approach at benchmarking (see [here](../benchmarking/README.md#training-data)).<br>
 For a quick summary, the dataset consists of ~5k commands, specific to the Philips Hue ecosystem, 4000 for training and 980 for testing, with a variety of user commands and corresponding actions.<br>
@@ -114,9 +156,6 @@ To showcase the power of finetuning, let's first look at the 'base' models:
 As you can see, both models perform are quite good when it comes to parsing the user command, however, they perform incredibly poorly in outputing the actual JSON structure.<br> 
 Meaning that IF they manage to output the correct JSON structure, they are very likely to have the correct arguments.<br>
 Neither of the models managed to get above 30% success rate!
-
-#### Qwen2.5 0.5B Instruct
-![Qwen2.5 0.5B Instruct](images/base_qwen05b.png)
 
 ##### Qwen2.5 1.5B Instruct
 ![Qwen2.5 1.5B Instruct](images/base_qwen15b.png)
