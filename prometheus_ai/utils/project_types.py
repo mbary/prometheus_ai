@@ -23,15 +23,14 @@ class DependenciesManager(CustomBaseModel):
     bridge: Optional[Bridgette] = Field(description="The Bridgette instance used for interacting with the Hue ecosystem.",)
     model: str = Field(description="The model used for LLM interactions.",default=None)
     benchmarking: bool = Field(default=False, description="Whether the agent is running in benchmarking mode. If True, the agent will return the action instead of executing it.")
+    training: bool = Field(default=False, description="Whether the agent is running in training mode. If True, the agent will return the action instead of executing it.")
     max_tokens: int = Field(description="The maximum number of tokens for LLM responses.")
-    mode: str
 
 class Brightness(BaseModel):
     brightness: Union[int,float, None] = Field(description="""The user's desired brightness level.
                                          Can be expressed in absolute values (int) or percentages (float).
                                          If a percentage is given, the absolute value will be based on the current light state.
                                          If user says 'set brightness to 50' return 50, if the user says 'decrease brightness to 30%', return 0.3. If the user says 'increase brightness by 10%' return 0.1. If the user says 'decrease brightness by 40%' return -0.4.""",
-                                         examples=[30,0.5, 0.75, 100, 50, 0.25],
                                          ge=0, le=100,
                                          default=None)
     
@@ -46,25 +45,23 @@ class Brightness(BaseModel):
                                                        default=None,)
 
 class Command(BaseModel):
-    # thinking: str = Field(description="Think about the action to be executed. What action does the user want to perform?")
-
     zone: Literal["office", "lounge", "lounge floor lights", "bedroom", "all", "tv"] = Field(
         description="The name of the zone where the command will be executed.")
     
     light: Union[str, None] = Field(
-        description="The name of the light where the command will be executed")
-    
-    scene: Union[Literal['natural light', 'relax', 'bloodbath', 'rest', 'disturbia', 
-                            'relax', 'energize ', 'concentrate', 'read', 'warm embrace', 
-                            'galaxy', 'phthalocyanine green love', 'starlight', 'tri colour',
-                              'shrexy', 'nightlight', 'energize', 'vapor wavey', 'dimmed', 'valley dawn', 'soho'], None] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.",
-                                                                                                                           default=None,)
+        description="The name of the light where the command will be executed",
+        default=None,)
+
+    scene: Union[str, None] = Field(description="The scene to be set in the specified zone. A scene can be set only on an entire zone, not on a specific light.",
+                                    default=None,)
     temperature: Union[int, None] = Field(description="The user's desired light temperature. May be expressed in Kelvin units.",
                                        ge=153, le=500,
                                        examples=[153, 200, 300, 400, 500],
                                        default=None,) 
-    # brightness: Union[Brightness, None] = None
-    brightness: Brightness
+    brightness_value: Optional[Union[int, float, None]] = None
+    brightness_mode: Optional[Literal["absolute", "relative", None]] = None
+    brightness_direction: Optional[Literal["up", "down", None]] = None
+
 
 
 class Scenario(BaseModel):
@@ -77,7 +74,9 @@ class Scenario(BaseModel):
     scene: Union[str, None]
     light: Union[str, None]
     temperature: Union[int, None]
-    brightness: Union[Brightness, None]
+    brightness_value: Optional[Union[int, float, None]]
+    brightness_mode: Optional[Literal["absolute", "relative", None]]
+    brightness_direction: Optional[Literal["up", "down", None]]
     split: Literal["train", "test"]
 
 class Trajectory(BaseModel):
@@ -93,6 +92,6 @@ class Trajectory(BaseModel):
     correct_scene: Optional[Union[int,None]] = None
     correct_light: Optional[Union[int,None]] = None
     correct_temperature: Optional[Union[int,None]] = None
-    correct_brightness: Optional[Union[int,None]] = None
-    correct_brightness_relative: Optional[Union[int,None]] = None
-    correct_brightness_up_down: Optional[Union[int,None]] = None
+    correct_brightness_value: Optional[Union[int,None]] = None
+    correct_brightness_mode: Optional[Union[int,None]] = None
+    correct_brightness_direction: Optional[Union[int,None]] = None

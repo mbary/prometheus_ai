@@ -5,13 +5,17 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "datasets>=4.0.0",
+    "bitsandbytes>=0.47.0",
+    "datasets<4.0.0",
+    "gql==3.5.3",
     "huggingface-hub>=0.34.1",
     "instructor>=1.10.0",
     "ipykernel>=6.30.0",
     "ipywidgets>=8.1.7",
     "logfire>=4.0.0",
     "openai>=1.90.0",
+    "openpipe-art>=0.4.11",
+    "peft>=0.17.1",
     "polars>=1.32.0",
     "prometheus",
     "pyaudio>=0.2.14",
@@ -19,9 +23,15 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
+    "setproctitle>=1.3.6",
+    "tblib>=3.1.0",
+    "torchao>=0.12.0",
     "torchcodec>=0.5",
+    "torchtune>=0.6.1",
     "tqdm>=4.67.1",
     "transformers>=4.54.0",
+    "trl>=0.20.0",
+    "unsloth==2025.8.5",
     "vllm>=0.10.0",
 ]
 

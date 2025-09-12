@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+import argparse
+import ast
+import json
 import os
 import textwrap
 import asyncio
 from typing import Union
-
+import re
 from openai import AsyncOpenAI
 from rich import print
 import instructor
+# import weave
 import logfire
+from pydantic import ValidationError
 from dotenv import load_dotenv
 load_dotenv()
 
 from Prometheus import Bridgette
-from utils.project_types import StateManager, DependenciesManager
+from utils.project_types import StateManager, DependenciesManager, Command, Brightness
 from utils.agent_tools import turn_off, turn_on, set_scene, set_brightness, set_temperature
 
 """
@@ -123,7 +128,52 @@ AGENTACTIONS = Union[turn_on,
                     #  Dim
                      ]
 
-class Agent:
+# @weave.op()
+def _extract_first_json_block(text: str) -> str | None:
+    # Strip fences (```json / ``` JSON / bare ```), anywhere top/bottom
+    s = (text or "").strip()
+    s = re.sub(r"^```[a-zA-Z]*\s*", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"\s*```$", "", s, flags=re.IGNORECASE)
+
+    # Already looks like a sole JSON object
+    if s.startswith("{") and s.rstrip().endswith("}"):
+        return s
+
+    # Find first balanced {...} block inside any surrounding prose
+    start = s.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    for i, c in enumerate(s[start:], start=start):
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return s[start:i+1]
+    return None
+
+# @weave.op()
+def _loads_jsonish(block: str):
+    # 1) strict JSON
+    try:
+        return json.loads(block)
+    except Exception:
+        pass
+    # 2) double-encoded JSON (a JSON string containing JSON)
+    try:
+        tmp = json.loads(block)
+        if isinstance(tmp, str):
+            return json.loads(tmp)
+    except Exception:
+        pass
+    # 3) permissive python literal (single quotes / True/False/None)
+    try:
+        return ast.literal_eval(block)
+    except Exception:
+        return None
+
+class AgentStruct:
 
     @logfire.instrument('agent_initialisation', extract_args=True, record_return=True)
     def __init__(self, 
@@ -268,7 +318,7 @@ class Agent:
                 "lounge": ["standing", "flartsy", "tv1", "tv2"],
                 "bedroom": ["ceiling", "ceiling"],
                 "tv": ["sub"],
-                "lounge floor lamps":["standing", "flartsy"],
+                "lounge floor lights":["standing", "flartsy"],
 
             }
             zone_devices = self.format_sections(zone_devices)
@@ -299,22 +349,265 @@ class Agent:
         #The available devices in each zone are: {zone_devices}
         """
         return textwrap.dedent(SYS_PROMPT_COMMAND)
+    
+
+class Agent:
+    def __init__(self, 
+                 provider: str = "local",
+                 max_retries: int = 3,
+                 model: str = None,
+                 benchmarking: bool = False,
+                 max_tokens: int = 258) -> None:
+        self.provider = provider
+        self.max_retries = max_retries
+        self.model = model
+
+        PROVIDERS = {
+            "local": {
+                "base_url": "http://localhost:8000/v1",
+                "api_key_env": None,
+                "default_api_key": "EMPTY"
+            },
+            "openrouter": {
+                "base_url": "https://openrouter.ai/api/v1",
+                "api_key_env": "OPENROUTER_API_KEY",
+                "default_api_key": None
+            },
+            "anthropic": {
+                "base_url": "https://api.anthropic.com/v1/",
+                "api_key_env": "ANTHROPIC_API_KEY",
+                "default_api_key": None
+            },
+            "deepinfra": {
+                "base_url": "https://api.deepinfra.com/v1/openai",
+                "api_key_env": "DEEPINFRA_API_KEY",
+                "default_api_key": None
+            },
+            "openai": {
+                "base_url": "",
+                "api_key_env": "OPENAI_API_KEY",
+                "default_api_key": None
+            }
+        }
+        if provider not in PROVIDERS:
+            raise ValueError(f"Unsupported provider: {provider}. Supported providers: {list(PROVIDERS.keys())}")
         
+        provider_config = PROVIDERS[provider]
+        base_url = provider_config["base_url"]
+
+        if provider_config["api_key_env"]:
+            api_key = os.getenv(provider_config["api_key_env"])
+            if api_key is None:
+                raise ValueError(f"API key not found in environment variable {provider_config['api_key_env']} for provider {provider}")
+        else:
+            api_key = provider_config["default_api_key"]
+
+        if benchmarking:
+            self.bridge = None
+            self.state = StateManager(bridge_state={})
+        else:
+            self.bridge: Bridgette = Bridgette()
+            self.state: StateManager = StateManager(bridge_state=self.bridge.get_current_state())
+
+        try:
+            if provider == "openai":
+                client = AsyncOpenAI()
+            else:
+                client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url=base_url)
+        except Exception as e:            
+            raise e
+        
+        self.deps: DependenciesManager = DependenciesManager(client=client,
+                                                             bridge=self.bridge,
+                                                             benchmarking=benchmarking,
+                                                             model=model,
+                                                             max_tokens=max_tokens,
+                                                             max_retries=max_retries,) 
+
+        self.SYS_PROMPT = self._build_sys_prompt(self.deps, self.state)
+
+    def __format_sections(self, data: dict) -> str:
+        """Return a bullet-formatted string from a dict[str, list[str]]."""
+        lines = []
+        for section, items in data.items():
+            line = f"{section}: {', '.join(items)}"
+            lines.append(line.lower())
+        return "\n".join(lines)
+
+    def _build_sys_prompt(self, deps: DependenciesManager, state:StateManager) -> str:
+        if deps.benchmarking:
+            zones = "office, lounge, lounge floor lights, bedroom, all, tv"
+            zone_devices = {
+                "office": ["desk", "ceiling", "floor"],
+                "lounge": ["standing", "flartsy", "tv1", "tv2"],
+                "bedroom": ["ceiling", "ceiling"],
+                "tv": ["sub"],
+                "lounge floor lights":["standing", "flartsy"],
+
+            }
+            zone_devices = self.__format_sections(zone_devices)
+            zone_scenes = """\n*Lounge: Nightlight, Warm embrace, Galaxy, Starlight, Valley dawn\n*Office: Energize, Concentrate, Natural light, tri colour, vapor wavey, Shrexy, Soho, Relax, Rest, Dimmed, Read, Nightlight, Disturbia, Bloodbath, phthalocyanine green love\n*Bedroom: Natural light, Energize, Read, Concentrate, Nightlight, Rest, Relax""".lower()
+        else:
+            zones = ",\n".join(deps.bridge.zones.keys())
+            zone_devices = {zone:list(val['devices'].keys()) for zone, val in state.bridge_state['zones'].items()}
+            zone_devices = self.__format_sections(zone_devices)
+            zone_scenes = {zone:list(val.scenes.keys()) for zone,val in deps.bridge.zones.items()}
+            # zone_scenes = {zone:list(val['scenes'].keys()) for zone, val in state.bridge_state['zones'].items()}
+            zone_scenes = self.__format_sections(zone_scenes)
+
+        SYS_PROMPT = """You are an assistant parsing commands for a smart lighting system.
+
+        Always respond with valid JSON in this exact format:
+        {
+        "think": "Your reasoning for this action",
+        "action_type": "turn_on|turn_off|set_scene|set_brightness|set_temperature",
+        "command": {
+            "zone": "office|lounge|lounge floor lights|bedroom|all|tv",
+            "light": "light_name or null",
+            "scene": "scene_name or null", 
+            "temperature": number_or_null,            
+            "brightness_value": number_or_null,
+            "brightness_mode": "absolute|relative|null",
+            "brightness_direction": "up|down or null"
+            
+        }
+        }"""
+        SYS_PROMPT += f"""\n\nAvailable zones: {zones}\n\nAvailable devices per zone:\n{zone_devices}\n\nAvailable scenes per zone:\n{zone_scenes}\n\n#Rules:
+        - Only include relevant parameters for each action
+        - Set irrelevant parameters to null
+        - Temperature range: 153-500
+        - Brightness range: 1-100
+        - For relative brightness, "brightness" MUST be a decimal between 0 and 1 (e.g., 0.2 for 20%).
+        Do NOT output 20 or 20% for relative deltas.
+        - Output only a single JSON object. No prose.
+        # Brightness rules:
+        - If relative: true -> `brightness` is a fractional delta in (0,1]; e.g., 0.2 means "+20%", 0.1 means "+10%".
+        - If relative: false -> `brightness` is an absolute level 1-100.
+        - Never mix units. Do not output 80 when relative=true; do not output 0.2 when relative=false."""
+
+        SYS_PROMPT+="""# Examples (one-line JSON, no prose):
+        {"action_type":"set_brightness","command":{"zone":"lounge","light":"standing","scene":null,"temperature":null,"brightness_value":0.15,"brightness_mode":"relative","brightness_direction":"up"}}
+        {"action_type":"set_brightness","command":{"zone":"bedroom","light":null,"scene":null,"temperature":null,"brightness_value":0.3,"brightness_mode":"relative","brightness_direction":"down"}}
+        {"action_type":"set_brightness","command":{"zone":"tv","light":null,"scene":null,"temperature":null,"brightness_value":42,"brightness_mode":"absolute","brightness_direction":null}}
+        {"action_type":"set_scene","command":{"zone":"office","light":null,"scene":"Energize","temperature":null,"brightness_value":null,"brightness_mode":"null","brightness_direction":null}}"""
+
+        return textwrap.dedent(SYS_PROMPT)
+
+    # @weave.op()
+    async def generate_response(self, query: str):
+        response = await self.deps.client.chat.completions.create(
+            model=self.deps.model,
+            messages=[
+                {"role":"system", "content": self.SYS_PROMPT},
+                {"role": "user", "content": query}
+            ],
+            temperature=0.2,
+            top_p=0.9,
+            max_tokens=256)
+        return response.choices[0].message.content or ""
+
+    # @weave.op() 
+    def parse_completion_to_action(self, completion: str):
+        ACTION_MAP = {
+            "turn_on": turn_on,
+            "turn_off": turn_off,
+            "set_scene": set_scene,
+            "set_brightness": set_brightness,
+            "set_temperature": set_temperature,
+        }
+        block = _extract_first_json_block(completion)
+        if not block:
+            raise ValueError(f"No JSON block found. preview={ (completion or '')[:200] }")
+
+        data = _loads_jsonish(block)
+        if not isinstance(data, dict):
+            raise ValueError(f"Parsed non-dict JSON. preview={ block[:200] }")
+
+        action_type = data.get("action_type") or data.get("tool_name")
+        if action_type not in ACTION_MAP:
+            raise ValueError(f"Unknown action_type={action_type}. preview={ str(data)[:200] }")
+
+        cmd = data.get("command") or data.get("arguments") or {}
+
+        b = cmd.get("brightness")
+        brightness = None
+        if isinstance(b, dict):
+            brightness = Brightness(
+                brightness=b.get("brightness"),
+                relative=b.get("relative"),
+                up_down=b.get("up_down"),
+            )
+
+        try:
+            command = Command(
+                zone=cmd.get("zone"),
+                light=cmd.get("light"),
+                scene=cmd.get("scene"),
+                temperature=cmd.get("temperature"),
+                brightness=brightness,
+            )
+        except ValidationError as ve:
+            raise ValueError(f"Pydantic validation failed: {ve}") from ve
+
+        return ACTION_MAP[action_type](think=data.get("think", ""), command=command)
+        
+    # @weave.op()
+    async def action(self, user_prompt: str) -> None:
+        try:
+            raw_response = await self.generate_response(user_prompt)
+            action = self.parse_completion_to_action(raw_response)
+            
+            if self.deps.benchmarking:
+                return action
+            
+            action.execute(self.state, self.deps, action.command)        
+        except Exception as e:
+            return {"error": str(e), "error_type": type(e).__name__}
+    
 
 async def main():
-    user_query = ''
-    logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
-    with logfire.span("Agent Run"):
-        agent = Agent(provider="local", model="Qwen3-0.6B")
-        while True and user_query.lower() != "exit":
-            try:
-                user_query = input("Enter your command: ")
-                if user_query.lower() == "exit":
-                    break
-                _ = await agent.action(user_query)
-            except KeyboardInterrupt:
-                print("\nExiting...")
+
+    parser = argparse.ArgumentParser(description="Run the Philips Hue Agent.")
+    parser.add_argument("--provider", type=str, default="local", choices=["local", "openrouter", "anthropic", "deepinfra", "openai"], help="The AI provider to use.")
+    parser.add_argument("--model", type=str, default=None, required=True ,help="The model to use.")
+    args = parser.parse_args()
+
+    user_query = ""
+
+
+    # weave.init("prometheus_ai_agent")
+    while True and user_query.lower() != "exit":
+        try:
+            user_query = input("Enter your command: ")
+            if user_query.lower() == "exit":
                 break
+            agent = Agent(provider=args.provider, model=args.model)
+            _ = await agent.action(user_query)
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            break
+        # finally:
+        #     try:
+        #         # weave.finish()
+        #     except Exception:
+        #         pass            
+
+# async def main():
+#     user_query = ''
+#     # logfire.configure(token=os.environ.get("LOGFIRE_WRITE_TOKEN_PROMETHEUS"), console=False)
+#     with logfire.span("Agent Run"):
+#         agent = Agent(provider=args["provider"], model=args["model"])
+#         while True and user_query.lower() != "exit":
+#             try:
+#                 user_query = input("Enter your command: ")
+#                 if user_query.lower() == "exit":
+#                     break
+#                 _ = await agent.action(user_query)
+#             except KeyboardInterrupt:
+#                 print("\nExiting...")
+#                 break
 
 if __name__ == "__main__":
     asyncio.run(main())

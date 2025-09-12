@@ -10,6 +10,11 @@ The whole point of this project is to identify a model small enough that I can h
 I am looking for an excuse to do some reinforcement learning with it improving model performance. Unfortunately, it seems like even the smaller, 0.6B models are quite good at these sort of tasks...<br>
 So I might RL it so that it understands commands in Polish language.
 
+### Fine Tuning
+I fine tuned a few qwen2.5 models greatly enhancing their accuracy on the given task.<br>
+The fine tuning was performed using Unsloth and huggingface's tlr.GRPOTRainer.<br>
+For more information about the process see the following [README:](prometheus_ai/train/README.md)
+
 ## Features
 
 ### Core Functionality
