@@ -9,7 +9,7 @@ import argparse
 from datetime import datetime
 from typing import Optional, List, Dict
 
-import weave
+# import weave
 import instructor
 import logfire
 from datasets import load_dataset
@@ -22,9 +22,9 @@ from rich.console import Console
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.project_types import Scenario
 
-@weave.op()
+# @weave.op()
 def load_scenarios(
-    dataset_name: str = "mbary/hue_commands_synth_5k_v3", 
+    dataset_name: str = "mbary/hue_commands_synth_5k_v7", 
     split: str = "train", 
     limit: Optional[int] = None,
     exclude_actions: Optional[List[str]] = None,
@@ -73,7 +73,9 @@ def load_scenarios(
             scene=item['scene'],
             light=item['light'],
             temperature=item['temperature'],
-            brightness=item['brightness'] ,
+            brightness_value=item['brightness_value'] ,
+            brightness_mode=item['brightness_mode'],
+            brightness_direction=item['brightness_direction'],
             split=item['split']
         )
         scenarios.append(scenario)
@@ -82,7 +84,7 @@ def load_scenarios(
     return scenarios
 
 
-@weave.op()
+# @weave.op()
 def tool_usage(action, scenario) -> int:
     """
     Scores the action based on the command.
@@ -92,7 +94,7 @@ def tool_usage(action, scenario) -> int:
         score = 1
     return score
 
-@weave.op()
+# @weave.op()
 def correct_zone(action, scenario) -> int:
     """
     Checks if the action's zone matches the scenario's zone.
@@ -102,59 +104,59 @@ def correct_zone(action, scenario) -> int:
         score = 1
     return score
 
-@weave.op()
+# @weave.op()
 def correct_scene(action, scenario) -> int:
     score = 0
     if action and action.command.scene == scenario.scene:
         score = 1
     return score
 
-@weave.op()
+# @weave.op()
 def correct_light(action, scenario) -> int:
     score = 0
     if action and action.command.light == scenario.light:
         score = 1
     return score
 
-@weave.op()
+# @weave.op()
 def correct_temperature(action, scenario) -> int:
     score = 0
     if action and action.command.temperature == scenario.temperature:
         score = 1
     return score
 
-@weave.op()
-def correct_brightness(action, scenario) -> int:
+# @weave.op()
+def correct_brightness_value(action, scenario) -> int:
 
     score = 0
-    if action and action.command.brightness.brightness == scenario.brightness.brightness:
+    if action and action.command.brightness_value == scenario.brightness_value:
         score = 1
     return score
 
-@weave.op()
-def correct_brightness_relative(action, scenario) -> int:
+# @weave.op()
+def correct_brightness_mode(action, scenario) -> int:
     score = 0
-    if action and action.command.brightness.relative == scenario.brightness.relative:
+    if action and action.command.brightness_mode == scenario.brightness_mode:
         score = 1
     return score
 
-@weave.op()
-def correct_brightness_up_down(action, scenario) -> int:
+# @weave.op()
+def correct_brightness_direction(action, scenario) -> int:
     score = 0
-    if action and action.command.brightness.up_down == scenario.brightness.up_down:
+    if action and action.command.brightness_direction == scenario.brightness_direction:
         score = 1
     return score
 
-@weave.op()
+# @weave.op()
 def score_action(action,scenario) -> Dict[str, float]:
     correct_tool_score = tool_usage(action, scenario)
     correct_zone_score = correct_zone(action, scenario)
     correct_scene_score = correct_scene(action, scenario)
     correct_light_score = correct_light(action, scenario)
     correct_temperature_score = correct_temperature(action, scenario)
-    correct_brightness_score = correct_brightness(action, scenario)
-    correct_brightness_relative_score = correct_brightness_relative(action, scenario)
-    correct_brightness_up_down_score = correct_brightness_up_down(action, scenario)
+    correct_brightness_score = correct_brightness_value(action, scenario)
+    correct_brightness_mode_score = correct_brightness_mode(action, scenario)
+    correct_brightness_direction_score = correct_brightness_direction(action, scenario)
 
     score_dict = {
     "correct_tool": correct_tool_score,
@@ -162,9 +164,9 @@ def score_action(action,scenario) -> Dict[str, float]:
     "correct_scene": correct_scene_score,
     "correct_light": correct_light_score,
     "correct_temperature": correct_temperature_score,
-    "correct_brightness": correct_brightness_score,
-    "correct_brightness_relative": correct_brightness_relative_score,
-    "correct_brightness_up_down": correct_brightness_up_down_score,
+    "correct_brightness_value": correct_brightness_score,
+    "correct_brightness_mode": correct_brightness_mode_score,
+    "correct_brightness_direction": correct_brightness_direction_score,
     }
     
     return score_dict

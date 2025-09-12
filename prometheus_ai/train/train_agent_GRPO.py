@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
-import weave
+# import weave
 import wandb
 from datasets import Dataset
 from pydantic import ValidationError
@@ -20,12 +20,18 @@ from reward_funcs import create_grpo_reward_functions
 
 AGENTACTIONS = Union[turn_on, turn_off, set_scene, set_brightness, set_temperature]
 
-PROJECT_FULL = "mbaryp2-mbary/grpo_training7"
+PROJECT_FULL = "mbaryp2-mbary/grpo_training8"
 entity, project = PROJECT_FULL.split("/")
-
+MODEL_NAME="unsloth/Qwen2.5-3B-Instruct-bnb-4bit"
+# MODEL_NAME="unsloth/Qwen2.5-3B-Instruct"
+# MODEL_NAME="unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit"
+# MODEL_NAME="unsloth/Qwen2.5-1.5B-Instruct"
+# MODEL_NAME="unsloth/Qwen2.5-0.5B-Instruct"
 RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
-RUN_NAME = f"grpo_split_rewards_{RUN_ID}"
-RUN_ROOT = Path("runs") / "grpo_hue_agent" / RUN_ID
+# RUN_NAME = f"grpo_split_rewards_{RUN_ID}"
+RUN_NAME = MODEL_NAME.split("/")[1] + "_" + RUN_ID
+# RUN_ROOT = Path("runs") / "grpo_hue_agent" / RUN_ID
+RUN_ROOT = Path("runs") / "grpo_hue_agent" / RUN_NAME
 CKPT_DIR   = RUN_ROOT / "ckpt"
 LORA_DIR   = RUN_ROOT / "lora"
 MERGED_DIR = RUN_ROOT / "merged"
@@ -37,42 +43,64 @@ os.environ["WANDB_DIR"] = str(RUN_ROOT)
 
 SYS_PROMPT = """You are an assistant parsing commands for a smart lighting system.
 
-Always respond with valid JSON in this exact format:
-{
-  "think": "Your reasoning for this action",
-  "action_type": "turn_on|turn_off|set_scene|set_brightness|set_temperature",
-  "command": {
-    "zone": "office|lounge|lounge floor lights|bedroom|all|tv",
-    "light": "light_name or null",
-    "scene": "scene_name or null", 
-    "temperature": number_or_null,
-    "brightness": {
-      "brightness": number_or_null,
-      "relative": true_or_false_or_null,
-      "up_down": "up|down or null"
-    }
-  }
-}
+        Always respond with valid JSON in this exact format:
+        {
+        "think": "Your reasoning for this action",
+        "action_type": "turn_on|turn_off|set_scene|set_brightness|set_temperature",
+        "command": {
+            "zone": "office|lounge|lounge floor lights|bedroom|all|tv",
+            "light": "light_name or null",
+            "scene": "scene_name or null", 
+            "temperature": number_or_null,            
+            "brightness_value": number_or_null,
+            "brightness_mode": "absolute|relative|null",
+            "brightness_direction": "up|down or null"
+            
+        }
+        }
 
-Available zones: office, lounge, lounge floor lights, bedroom, all, tv
+Available zones: lounge,
+bedroom,
+office,
+lounge floor lights,
+tv
 
 Available devices per zone:
-* office: desk, ceiling, floor
-* lounge: standing, flartsy, tv1, tv2  
-* bedroom: ceiling, ceiling
-* tv: sub
-* lounge floor lights: standing, flartsy
+lounge: small light, tv1, tv2, flartsy, standing
+bedroom: ceiling1, ceiling
+office: floor, desk, ceiling
+lounge floor lights: small light, standing, flartsy
+tv: sub
 
-Available scenes: natural light, relax, bloodbath, rest, disturbia, energize, concentrate, read, warm embrace, galaxy, phthalocyanine green love, starlight, tri colour, shrexy, nightlight, vapor wavey, dimmed, valley dawn, soho
+Available scenes per zone:
+lounge: galaxy, starlight, valley dawn, nightlight, warm embrace
+bedroom: energize, nightlight, read, rest, relax, concentrate, natural light
+office: phthalocyanine green love, soho, shrexy, tri colour, bloodbath, relax, read, energize, rest, vapor wavey, nightlight, disturbia, dimmed, concentrate, natural light
+lounge floor lights: 
+tv: 
 
-Rules:
+#Rules:
 - Only include relevant parameters for each action
 - Set irrelevant parameters to null
 - Temperature range: 153-500
-- Brightness range: 1-100"""
+- Brightness range: 1-100
+- For relative brightness, "brightness" MUST be a decimal between 0 and 1 (e.g., 0.2 for 20%).
+Do NOT output 20 or 20% for relative deltas.
+- Output only a single JSON object. No prose.
+# Brightness rules:
+- If relative: true -> `brightness` is a fractional delta in (0,1]; e.g., 0.2 means "+20%", 0.1 means "+10%".
+- If relative: false -> `brightness` is an absolute level 1-100.
+- Never mix units. Do not output 80 when relative=true; do not output 0.2 when relative=false.
+
+# Examples:
+# Examples (one-line JSON, no prose):
+{"action_type":"set_brightness","command":{"zone":"lounge","light":"standing","scene":null,"temperature":null,"brightness_value":0.15,"brightness_mode":"relative","brightness_direction":"up"}}
+{"action_type":"set_brightness","command":{"zone":"bedroom","light":null,"scene":null,"temperature":null,"brightness_value":0.3,"brightness_mode":"relative","brightness_direction":"down"}}
+{"action_type":"set_brightness","command":{"zone":"tv","light":null,"scene":null,"temperature":null,"brightness_value":42,"brightness_mode":"absolute","brightness_direction":null}}
+{"action_type":"set_scene","command":{"zone":"office","light":null,"scene":"Energize","temperature":null,"brightness_value":null,"brightness_mode":"null","brightness_direction":null}}"""
 
 class GRPOHue:
-    def __init__(self, model_name: str = "unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit", 
+    def __init__(self, model_name: str = MODEL_NAME, 
                  max_lora_rank: int = 32,
                  gpu_memory_utilization: float = 0.6,
                  fast_inference: bool = True,
@@ -98,7 +126,7 @@ class GRPOHue:
             random_state=3407,
         )
 
-    @weave.op()
+    # @weave.op()
     def parse_completion_to_action(self, completion: str) -> Union[AGENTACTIONS, None]:
         try:
             completion = completion.strip()
@@ -130,7 +158,7 @@ class GRPOHue:
         except (json.JSONDecodeError, KeyError, ValidationError, TypeError, AttributeError):
             return None
 
-    @weave.op()
+    # @weave.op()
     def prepare_dataset(self, scenarios: List[Scenario]) -> Dataset:
         data = []
         for sc in scenarios:
@@ -140,7 +168,7 @@ class GRPOHue:
             data.append({"prompt": formatted, "scenarios": sc.model_dump_json()})
         return Dataset.from_list(data)
 
-    @weave.op()
+    # @weave.op()
     def setup_training_config(self, max_steps: int) -> GRPOConfig:
         training_config = {
             "output_dir": str(CKPT_DIR),  
@@ -186,9 +214,9 @@ class GRPOHue:
         (CONF_DIR / "sys_prompt.txt").write_text(SYS_PROMPT)
         return GRPOConfig(**training_config)
 
-    @weave.op()
+    # @weave.op()
     def train(self,
-              dataset_name: str = "mbary/hue_commands_synth_5k_v3",
+              dataset_name: str = "mbary/hue_commands_synth_5k_v7",
               split: str = "train",
               limit: Optional[int] = 3000,
               output_dir: str = str(CKPT_DIR),
@@ -198,14 +226,14 @@ class GRPOHue:
         scenarios = load_scenarios(dataset_name=dataset_name, split=split, limit=limit, seed=42)
 
         reward_functions = create_grpo_reward_functions(self)
-        if test_rewards_first:
-            print("\n" + "="*60)
-            print("Testing reward functions before training...")
-            print("="*60)
-            if not self.test_reward_functions(scenarios[:50], reward_functions):
-                print("\nReward functions failed testing. Fix them before training!")
-                raise ValueError("Reward functions not suitable for training")
-            print("\n✅ Reward functions passed testing. Proceeding with training...")
+        # if test_rewards_first:
+        #     print("\n" + "="*60)
+        #     print("Testing reward functions before training...")
+        #     print("="*60)
+        #     if not self.test_reward_functions(scenarios[:50], reward_functions):
+        #         print("\nReward functions failed testing. Fix them before training!")
+        #         raise ValueError("Reward functions not suitable for training")
+        #     print("\n✅ Reward functions passed testing. Proceeding with training...")
 
         dataset = self.prepare_dataset(scenarios)
         training_args = self.setup_training_config(max_steps)
@@ -265,13 +293,13 @@ class GRPOHue:
         print(f"\nCombined rewards - Mean: {combined.mean():.3f}, Std: {combined.std():.3f}")
         return combined.std() > 0.5 and np.any(combined < 0) and np.any(combined > 0)
 
-@weave.op()
+# @weave.op()
 def create_agent(model_name: str) -> GRPOHue:
     return GRPOHue(model_name=model_name, max_seq_length=2048, max_lora_rank=32)
 
-@weave.op()
-def run_training(model_name: str = "unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit",
-                 dataset_name: str ="mbary/hue_commands_synth_5k_v3",
+# @weave.op()
+def run_training(model_name: str = MODEL_NAME,
+                 dataset_name: str = "mbary/hue_commands_synth_5k_v7",
                  limit: int = 3000,
                  max_steps: int = 300):
     agent = create_agent(model_name)
@@ -290,10 +318,12 @@ def run_training(model_name: str = "unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit",
     return "done"
 
 if __name__ == "__main__":
-    weave.init(PROJECT_FULL)
-    with wandb.init(entity=entity, project=project, name=RUN_NAME, dir=str(RUN_ROOT)):
-        run_training()
-    try: 
-        weave.finish()
-    except Exception: 
-        pass
+    # weave.init(PROJECT_FULL)
+    # with wandb.init(entity=entity, project=project, name=RUN_NAME, dir=str(RUN_ROOT)):
+    wandb.init(entity=entity, project=project, name=RUN_NAME, dir=str(RUN_ROOT))
+    # wandb.init(project=project)
+    run_training()
+    # try: 
+    #     weave.finish()
+    # except Exception: 
+    #     pass

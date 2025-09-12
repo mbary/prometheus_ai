@@ -8,7 +8,7 @@ import argparse
 from datetime import datetime
 from typing import Optional, List, Dict
 
-import weave
+# import weave
 from tqdm.asyncio import tqdm
 from rich import print
 from rich.table import Table
@@ -19,7 +19,7 @@ from prometheus_ai import Agent
 from utils.project_types import Scenario, Trajectory
 from utils.utils_types import load_scenarios, score_action 
 
-@weave.op()
+# @weave.op()
 async def run_agent_and_score(
     scenario: Scenario,
     semaphore: asyncio.Semaphore,
@@ -36,6 +36,9 @@ async def run_agent_and_score(
                 error=action['error'],
                 error_type=action['error_type']
             )
+            # print(action['error'])
+            # print(scenario)
+            # print(action)
             return trajectory
         else:
             score = score_action(action, scenario)
@@ -53,13 +56,13 @@ async def run_agent_and_score(
                 correct_scene=score['correct_scene'],
                 correct_light=score['correct_light'],
                 correct_temperature=score['correct_temperature'],
-                correct_brightness=score['correct_brightness'],
-                correct_brightness_relative=score['correct_brightness_relative'],
-                correct_brightness_up_down=score['correct_brightness_up_down']
+                correct_brightness_value=score['correct_brightness_value'],
+                correct_brightness_mode=score['correct_brightness_mode'],
+                correct_brightness_direction=score['correct_brightness_direction']
             )
         return trajectory
 
-@weave.op()
+# @weave.op()
 async def benchmark(
     model: str,
     provider: str,
@@ -71,7 +74,7 @@ async def benchmark(
     # mode: Optional[str] = None,
 ) -> List[Trajectory]:
     scenarios = load_scenarios(
-        'mbary/hue_commands_synth_5k_v3',
+        'mbary/hue_commands_synth_5k_v7',
         split='test',
         limit=num_scenarios,
         # exclude_actions=exclude_actions,
@@ -178,7 +181,7 @@ def main():
     LOG_PATH = Path(__file__).parent.resolve() / "logs"
     LOG_PATH.mkdir(parents=True, exist_ok=True)
 
-    weave.init("benchmarking_new")
+    # weave.init("benchmarking_new")
 
     print(f"   Starting benchmark with configuration:")
     print(f"   Model: {args.model_name}")
@@ -206,13 +209,20 @@ def main():
     error_trajectories = [t for t in results if t.error]
 
     correct_tool_final_score = sum(t.correct_tool for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+
     correct_zone_final_score = sum(t.correct_zone for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+
     correct_scene_final_score = sum(t.correct_scene for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+
     correct_light_final_score = sum(t.correct_light for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+
     correct_temperature_final_score = sum(t.correct_temperature for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
-    correct_brightness_final_score = sum(t.correct_brightness for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
-    correct_brightness_relative_final_score = sum(t.correct_brightness_relative for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
-    correct_brightness_up_down_final_score = sum(t.correct_brightness_up_down for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+
+    correct_brightness_value_final_score = sum(t.correct_brightness_value for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+
+    correct_brightness_mode_final_score = sum(t.correct_brightness_mode for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
+
+    correct_brightness_direction_final_score = sum(t.correct_brightness_direction for t in successful_trajectories) / len(successful_trajectories) if successful_trajectories else 0
 
     detailed_scores = {
         "correct_tool": correct_tool_final_score,
@@ -220,9 +230,9 @@ def main():
         "correct_scene": correct_scene_final_score,
         "correct_light": correct_light_final_score,
         "correct_temperature": correct_temperature_final_score,
-        "correct_brightness": correct_brightness_final_score,
-        "correct_brightness_relative": correct_brightness_relative_final_score,
-        "correct_brightness_up_down": correct_brightness_up_down_final_score
+        "correct_brightness": correct_brightness_value_final_score,
+        "correct_brightness_relative": correct_brightness_mode_final_score,
+        "correct_brightness_up_down": correct_brightness_direction_final_score
     }
     with open(LOG_PATH / f"benchmark_results_{args.model_name.replace('/', '_').replace('-','_')}_{len(results)}_{timestamp}.json", 'a') as f:
         metadata = {
