@@ -114,12 +114,16 @@ To showcase the power of finetuning, let's first look at the 'base' models:
 As you can see, both models perform are quite good when it comes to parsing the user command, however, they perform incredibly poorly in outputing the actual JSON structure.<br> 
 Meaning that IF they manage to output the correct JSON structure, they are very likely to have the correct arguments.<br>
 Neither of the models managed to get above 30% success rate!
+
+#### Qwen2.5 0.5B Instruct
+![Qwen2.5 0.5B Instruct](images/base_qwen05b.png)
+
 ##### Qwen2.5 1.5B Instruct
 ![Qwen2.5 1.5B Instruct](images/base_qwen15b.png)
 
 ##### Qwen2.5 1.5B BNB4 by Unsloth
 ![Qwen2.5 1.5B BNB4 by Unsloth](images/base_bnb4.png)
-#### Fine-tuned Model
+#### Fine-tuned Model qwen2.5-1.5B-bnb4
 
 The fine-tuned model performed significantly better than the base models, achieving an amazing 90% success rate!
 While it performed slightly worse in parsing the correct arguments, it managed to output the correct JSON on a way more consistent basis.<br> 
@@ -140,7 +144,9 @@ This was quite a learning experience. Throughout the process I identified severa
 
 6. **Insufficient training samples** of fractional brightness values (for commands such as "increase brightness by X%") led to the model struggling to understand how to represent them correctly in JSON.
 
-## Potential Solutions
+7. **Low quality data points** having carefully inspecting the dataset, I've identified a number of samples that were of low quality. While the parameters themselves were correct, it turned out that, despite my best efforts to guide the dataset generating model, some of the commands lacked crucial information, required for successfull parsing of the commands. Mainly, they did not explicitly mention the zone in which an operation was to be executed. While some of the larger models were able to overcome it (due to some prompt/context engineering on my side) it posed an issue for the smaller models.
+
+## Solutions
 
 1. **Simplify the JSON structure** to reduce nesting and make it easier for the model to understand.
 
@@ -148,7 +154,44 @@ This was quite a learning experience. Throughout the process I identified severa
 
 3. **Increase the number of examples** for underrepresented commands to help the model learn their (though this will be done by secondary fine-tuning, with a smaller learning rate and number of steps).
 
-4. **Prompt Engineering** - Clarify instructions in the system prompt, especially around areas where the model struggled (e.g., brightness control). Provide more few-shot examples to guide the model.
+4. **Prompt/Context Engineering** - Clarify instructions in the system prompt, especially around areas where the model struggled (e.g., brightness control). Provide more few-shot examples to guide the model. Dynamically generate the system prompt, ensuring it contains an up-to-date list of Hue resources.
+
+5. **Dataset Preparation** - Ensure the generated dataset is fully consistent and adheres to the predefined set of rules. This includes ensuring that all commands are represented correctly and that there are no conflicting examples or values.
+
+## Improved Fine-Tuning
+Based on the identified issues and proposed solutions, I have made several adjustments to my fine-tuning experiment.<br>
+By providing more specific instructions in the system prompt, simplifying the JSON structure, standardising argument formats, and slightly amending the existing dataset, I aimed to address the challenges faced by the model.<br>
+The results are quite astonishing, by merely simplifying the output JSON stucture, improving the dataset and clarifying the system prompt, I managed to achieve a whopping 98.7% success rate!<br>
+Not only did the overall success rate improve by over 8%, parsing of the individual arguments has improved dramatically, increasing the brightness value from 34% to 81%!!<br>
+
+It comes as no surprise that the larger models perform much better, achieving almost a perfect score in returning the correctly parsed JSON structure.<br>
+Another unsurprising result is the fact that the non-quantized models outperform their nerfed counterparts.<br>
+However, due to the end goal of running the model on a local machine, I am more interested in the performance of the smaller, 0.5B models.<br>
+The results are quite amazing, the tiny 0.5B model achieves a very respectable 90% success rate and manages to correctly parse the arguments across the board.<br>
+The fact that such a small model performs so well allows my entire system to run on a single 12GB GPU, with very low latency, high throughput and still have some memory left for other tasks.<br>
+
+This proves the importance of several things when it comes to working with and fine-tuning LLMs:
+1) Clear and unambiguous instructions
+
+2) Simple and easy to understand output structure
+
+3) Consistent and well-prepared dataset - **ALWAYS** look at your dataset! Its better to spend a few days ensuring top quality than have to struggle with training a model.
+
+### Benchmarking Results - Improved Fine Tuning Process
 
 
+#### Qwen2.5 0.5B Instruct
+![Improved Fine-tuned Qwen2.5 0.5B by Unsloth](images/qwen_05_lora.png)
 
+
+#### Qwen2.5-1.5B-bnb4-Instruct (quantized)
+![Improved Fine-tuned Qwen2.5 1.5B BNB4 by Unsloth](images/qwen_15_bnb_lora.png)
+
+#### Qwen2.5-1.5B-Instruct (non-quantized)
+![Improved Fine-tuned Qwen2.5 1.5B by Unsloth](images/qwen15_lora.png)
+
+#### Qwen2.5-3B-bnb4-Instruct (quantized)
+![Improved Fine-tuned Qwen2.5 3B BNB4 by Unsloth](images/qwen_3_bnb_lora.png)
+
+#### Qwen2.5-3B-Instruct
+![Improved Fine-tuned Qwen2.5 3B by Unsloth](images/qwen_3_lora.png)
